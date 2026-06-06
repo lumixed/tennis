@@ -30,6 +30,65 @@ function frame(session: Session, submit?: () => void, dtMs = 16) {
   return session.events;
 }
 
+/**
+ * Serve, then decline to play the return, until `count` points are lost.
+ *
+ * The human serves first, so a test that simply never swings never starts the
+ * match at all — nothing happens and nothing adapts.
+ */
+function concedePoints(session: Session, count: number) {
+  let conceded = 0;
+  for (let i = 0; i < 20000 && conceded < count; i++) {
+    const events = frame(session, () => {
+      if (session.state.phase === "awaiting-serve") {
+        session.swing(swing({ t: session.state.timeMs }));
+      }
+    });
+    conceded += events.filter((e) => e.type === "point").length;
+  }
+  return conceded;
+}
+
+describe("adaptive opponent", () => {
+  it("starts adapting against a human and reports its level", () => {
+    const session = humanVsBot();
+    expect(session.difficultyLevel).not.toBeNull();
+    expect(session.difficultyLabel).not.toBeNull();
+  });
+
+  it("does not adapt in a bot-versus-bot match", () => {
+    // Balance measurement needs a fixed opponent, not a moving target.
+    const session = createSession({
+      near: "bot",
+      far: "bot",
+      nearDifficulty: DIFFICULTIES.club!,
+      farDifficulty: DIFFICULTIES.club!,
+    });
+    expect(session.difficultyLevel).toBeNull();
+  });
+
+  it("eases off after losing a run of points", () => {
+    const session = humanVsBot();
+    const before = session.difficultyLevel!;
+
+    concedePoints(session, 12);
+
+    expect(session.state.match.games.far + session.state.match.points.far)
+      .toBeGreaterThan(0);
+    expect(session.difficultyLevel!).toBeLessThan(before);
+  });
+
+  it("keeps the far side's precision in step with its level", () => {
+    const session = humanVsBot();
+    const startingPrecision = session.state.precision.far;
+
+    concedePoints(session, 12);
+
+    // The level fell, so shot-making skill must have fallen with it.
+    expect(session.state.precision.far).toBeLessThan(startingPrecision);
+  });
+});
+
 describe("session event buffer", () => {
   it("keeps events from the player's own swing", () => {
     // Regression: `advance` used to clear the buffer, and the player's swings

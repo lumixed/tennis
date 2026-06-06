@@ -51,7 +51,7 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
         </p>
 
         <div className="start-section">
-          <span className="start-label">Opponent</span>
+          <span className="start-label">Starting opponent</span>
           <div className="start-options">
             {(Object.keys(DIFFICULTIES) as Array<keyof typeof DIFFICULTIES>).map(
               (key) => (
@@ -108,6 +108,11 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
             </p>
           </div>
         )}
+
+        <p className="start-adaptive">
+          The opponent adjusts to your level as you play, so this is only where
+          it begins.
+        </p>
 
         <div className="start-actions">
           <button
@@ -351,6 +356,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           lastFootwork: now - gradeShownAt < 1100 ? lastFootwork : null,
           stance: poseInput?.debug?.stance ?? null,
           poseVisibility: poseInput?.debug?.visibility ?? null,
+          difficultyLabel: session.difficultyLabel,
           lastPoint: now - pointShownAt < 2400 ? lastPoint : null,
           rallyShots: state.hitCount,
           renderMs: frameCostMs,

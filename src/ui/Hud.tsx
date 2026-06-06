@@ -26,6 +26,8 @@ export type HudSnapshot = {
   lastPoint: { winner: Side; reason: PointReason } | null;
   /** Landmark visibility from the camera, or null when not on camera. */
   poseVisibility: number | null;
+  /** Short label for the opponent's current level, when it is adapting. */
+  difficultyLabel: string | null;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
@@ -83,6 +85,11 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
           serving={match.server === "far"}
         />
         {score.caption && <div className="hud-caption">{score.caption}</div>}
+        {snapshot.difficultyLabel && (
+          <div className="hud-level" title="The opponent tracks your level">
+            {snapshot.difficultyLabel}
+          </div>
+        )}
       </div>
 
       <div className="hud-centre">
