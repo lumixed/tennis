@@ -14,6 +14,12 @@
 import type { NormalizedLandmark, PoseLandmarker } from "@mediapipe/tasks-vision";
 import type { SwingEvent } from "../engine/shotTypes";
 import { LANDMARK, loadLandmarker } from "./landmarker";
+import {
+  createAdaptivePower,
+  observeSwing,
+  powerFor,
+  type AdaptivePowerState,
+} from "./adaptivePower";
 import { swingConfig } from "./swingConfig";
 import {
   createDetectorState,
@@ -29,7 +35,13 @@ export type PoseStatus = "idle" | "starting" | "running" | "error";
 export type PoseStats = {
   /** Smoothed inference time per frame, ms. */
   inferenceMs: number;
-  /** Worst inference seen, ms. A single long frame is what reads as a stutter. */
+  /**
+   * Worst inference over the last few seconds, ms.
+   *
+   * Windowed rather than all-time: model warm-up costs one ~300 ms frame, and
+   * an all-time max is pinned red by it for the rest of the session, which
+   * makes the number useless exactly when you want to trust it.
+   */
   worstInferenceMs: number;
   /** Camera frames actually processed per second. */
   poseFps: number;
@@ -39,10 +51,17 @@ export type PoseStats = {
   delegate: "GPU" | "CPU" | "unknown";
   /** Times the watchdog had to revive a stalled frame loop. */
   restarts: number;
+  /** The swing-speed range power is currently mapped across. */
+  powerRange: [number, number];
+  /** Swings observed so far, which is what the range is learned from. */
+  swingsSeen: number;
 };
 
 /** How long without a camera frame counts as a stalled loop. */
 const WATCHDOG_STALL_MS = 1500;
+
+/** Window over which the worst inference time is reported. */
+const WORST_WINDOW_MS = 5000;
 
 export type PoseInput = {
   readonly status: PoseStatus;
@@ -137,8 +156,16 @@ export function createPoseInput(): PoseInput {
     dropped: 0,
     delegate: "unknown",
     restarts: 0,
+    powerRange: [swingConfig.powerSpeedMin, swingConfig.powerSpeedMax],
+    swingsSeen: 0,
   };
 
+  let adaptive: AdaptivePowerState = createAdaptivePower(
+    swingConfig.powerSpeedMin,
+    swingConfig.powerSpeedMax
+  );
+
+  const recentWorst: Array<{ at: number; ms: number }> = [];
   let running = false;
   let busy = false;
   let frameHandle: number | null = null;
@@ -180,7 +207,11 @@ export function createPoseInput(): PoseInput {
         stats.inferenceMs === 0
           ? elapsed
           : stats.inferenceMs * 0.9 + elapsed * 0.1;
-      stats.worstInferenceMs = Math.max(stats.worstInferenceMs, elapsed);
+      recentWorst.push({ at: started, ms: elapsed });
+      while (recentWorst.length && started - recentWorst[0]!.at > WORST_WINDOW_MS) {
+        recentWorst.shift();
+      }
+      stats.worstInferenceMs = recentWorst.reduce((a, b) => Math.max(a, b.ms), 0);
 
       if (lastFrameAt > 0) {
         const delta = started - lastFrameAt;
@@ -204,7 +235,19 @@ export function createPoseInput(): PoseInput {
 
       const pushed = pushSample(detector, sample, swingConfig);
       detector = pushed.state;
-      if (pushed.swing) queue.push(toSwingEvent(pushed.swing, swingConfig));
+
+      if (pushed.swing) {
+        // Learn from the swing before scoring it, so the very first swings
+        // still contribute to the range they are measured against.
+        adaptive = observeSwing(adaptive, pushed.swing.peakSpeed);
+        stats.powerRange = [adaptive.min, adaptive.max];
+        stats.swingsSeen = adaptive.peaks.length;
+
+        queue.push({
+          ...toSwingEvent(pushed.swing, swingConfig),
+          power: powerFor(adaptive, pushed.swing.peakSpeed),
+        });
+      }
     } catch (cause) {
       console.warn("[vision] inference failed:", cause);
     } finally {
@@ -346,7 +389,14 @@ export function createPoseInput(): PoseInput {
 
     reset() {
       detector = createDetectorState();
+      adaptive = createAdaptivePower(
+        swingConfig.powerSpeedMin,
+        swingConfig.powerSpeedMax
+      );
+      stats.powerRange = [adaptive.min, adaptive.max];
+      stats.swingsSeen = 0;
       queue.length = 0;
+      recentWorst.length = 0;
       stats.worstInferenceMs = 0;
       stats.dropped = 0;
     },

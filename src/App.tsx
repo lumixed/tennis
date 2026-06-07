@@ -33,6 +33,14 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
     useState<keyof typeof DIFFICULTIES>("club");
   const [inputMode, setInputMode] = useState<InputMode>("keyboard");
 
+  // Swinging at a camera is harder than pressing a key, and a recorded session
+  // on Club went three minutes without the player winning a game. Camera play
+  // starts on Rookie; anyone who wants more can still pick it.
+  const chooseInput = (mode: InputMode) => {
+    setInputMode(mode);
+    setDifficulty(mode === "camera" ? "rookie" : "club");
+  };
+
   return (
     <div className="start">
       <div className="start-inner">
@@ -64,13 +72,13 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
           <div className="start-options">
             <button
               className={inputMode === "keyboard" ? "chip chip-on" : "chip"}
-              onClick={() => setInputMode("keyboard")}
+              onClick={() => chooseInput("keyboard")}
             >
               Keyboard
             </button>
             <button
               className={inputMode === "camera" ? "chip chip-on" : "chip"}
-              onClick={() => setInputMode("camera")}
+              onClick={() => chooseInput("camera")}
             >
               Camera
             </button>
@@ -150,6 +158,22 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
 
   const handleExit = useCallback(() => onExit(), [onExit]);
 
+  /**
+   * Nag about framing only when it is actually a problem.
+   *
+   * Visibility below the detector's floor means frames are being thrown away
+   * entirely; a recorded session sat at 0.59 against a floor of 0.50, close
+   * enough that swings were being dropped without any explanation on screen.
+   */
+  const framing = (() => {
+    if (!snapshot) return null;
+    if (snapshot.poseVisibility === null) return null;
+    if (snapshot.poseVisibility >= 0.7) return null;
+    return snapshot.poseVisibility < 0.45
+      ? { title: "I can barely see you", hint: "Step back until your hips and shoulders are both in frame" }
+      : { title: "Step back a little", hint: "Your hips need to be in frame for swings to register" };
+  })();
+
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -207,6 +231,8 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     let lastGrade: TimingGrade | null = null;
     let lastKind: string | null = null;
     let lastFootwork: number | null = null;
+    let lastPoint: HudSnapshot["lastPoint"] = null;
+    let pointShownAt = 0;
     /** Dev-only swings injected through the same door pose swings use. */
     const injected: SwingEvent[] = [];
     let gradeShownAt = 0;
@@ -291,6 +317,8 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
             break;
           case "point":
             sound.point(event.winner === "near");
+            lastPoint = { winner: event.winner, reason: event.reason };
+            pointShownAt = now;
             // Linger on the shot that ended a real rally, not on a double fault.
             if (session.state.hitCount >= 4) time.slowMotion(650);
             break;
@@ -322,6 +350,8 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           lastKind: now - gradeShownAt < 1100 ? lastKind : null,
           lastFootwork: now - gradeShownAt < 1100 ? lastFootwork : null,
           stance: poseInput?.debug?.stance ?? null,
+          poseVisibility: poseInput?.debug?.visibility ?? null,
+          lastPoint: now - pointShownAt < 2400 ? lastPoint : null,
           rallyShots: state.hitCount,
           renderMs: frameCostMs,
           phase: state.phase,
@@ -416,6 +446,13 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
         <button className="tuning-open" onClick={() => setShowTuning(true)}>
           Tune detection (T)
         </button>
+      )}
+
+      {pose && !poseError && framing && (
+        <div className="framing">
+          <strong>{framing.title}</strong>
+          <span>{framing.hint}</span>
+        </div>
       )}
 
       {poseError && (

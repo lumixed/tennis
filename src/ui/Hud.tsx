@@ -7,7 +7,8 @@
  */
 
 import type { TimingGrade } from "../engine/shotTypes";
-import { describeScore, type MatchState } from "../engine/scoring";
+import { describeScore, type MatchState, type Side } from "../engine/scoring";
+import type { PointReason } from "../engine/rally";
 
 export type HudSnapshot = {
   match: MatchState;
@@ -21,11 +22,30 @@ export type HudSnapshot = {
   lastFootwork: number | null;
   /** Live stance from the camera, -1..1, or null when not on camera. */
   stance: number | null;
+  /** How the last point ended, while it is still worth showing. */
+  lastPoint: { winner: Side; reason: PointReason } | null;
+  /** Landmark visibility from the camera, or null when not on camera. */
+  poseVisibility: number | null;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
   phase: string;
   awaitingServe: boolean;
+};
+
+/**
+ * Why the point ended, from the near player's point of view.
+ *
+ * Losing without being told why is the fastest way to stop improving — a
+ * recorded session went three minutes without the player scoring, and nothing
+ * on screen ever said whether shots were going long, into the net, or simply
+ * not being reached.
+ */
+const POINT_REASON: Record<PointReason, { won: string; lost: string }> = {
+  out: { won: "Their shot was out", lost: "Your shot was out" },
+  net: { won: "They found the net", lost: "Into the net" },
+  "double-bounce": { won: "They could not reach it", lost: "You did not reach it" },
+  "double-fault": { won: "Double fault", lost: "Double fault" },
 };
 
 const GRADE_LABEL: Record<TimingGrade, string> = {
@@ -78,6 +98,7 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
           </div>
         )}
         <FootworkTag value={snapshot.lastFootwork} />
+        <PointOutcome outcome={snapshot.lastPoint} />
       </div>
 
       <div className="hud-bottom">
@@ -164,6 +185,23 @@ function Meter({ label, value }: { label: string; value: number }) {
       <div className="meter-track">
         <div className="meter-fill" style={{ width: `${value * 100}%` }} />
       </div>
+    </div>
+  );
+}
+
+function PointOutcome({
+  outcome,
+}: {
+  outcome: HudSnapshot["lastPoint"];
+}) {
+  if (!outcome) return null;
+  const won = outcome.winner === "near";
+  const text = POINT_REASON[outcome.reason][won ? "won" : "lost"];
+
+  return (
+    <div className={won ? "point-end point-won" : "point-end point-lost"}>
+      <span className="point-end-verdict">{won ? "Point" : "Point lost"}</span>
+      <span className="point-end-reason">{text}</span>
     </div>
   );
 }
