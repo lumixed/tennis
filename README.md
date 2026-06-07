@@ -103,21 +103,23 @@ The engine is pure and deterministic: same seed, same match. It never learns
 whether a swing came from a camera, a keyboard or the bot.
 
 ```bash
-npm test         # 158 tests
+npm test         # 193 tests
 npm run typecheck
 npm run build
 ```
 
 ## Status
 
-M0–M7 complete: physics, rally engine, bot, renderer, pose input, game feel,
-footwork.
+M0–M10 complete: physics, rally engine, bot, renderer, pose input, game feel,
+footwork, readability, adaptive calibration and an adaptive opponent.
 
-**The camera path has never been run against a real webcam.** The gesture logic
-is covered by synthetic-pose tests — classification, frame-rate independence,
-distance invariance, refractory behaviour — and the failure path (no camera,
-denied permission) degrades to keyboard cleanly. But the *thresholds* are still
-defaults, and defaults are guesses. First real session should be ten minutes in
-front of the tuning panel.
+The camera path has been played and verified on a real webcam: pose runs at
+~30 fps on the GPU delegate with ~15 ms inference, and a recorded session went
+from being shut out to winning games.
+
+Shot power is learned from your own swings as you play, so the game fits
+whoever is in front of the camera without anyone touching a slider. The
+opponent tracks your level between points rather than sitting on a preset.
+Explicit calibration (**T**) is still there when you want to set it directly.
 
 Not built yet: shot-event multiplayer.
