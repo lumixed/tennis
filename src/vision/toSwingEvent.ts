@@ -57,5 +57,7 @@ export function toSwingEvent(
     lateralBias: clamp(swing.lean * config.leanGain, -1, 1),
     // Mirrored: the player's right hand appears on the left of a selfie view.
     side: swing.hand === "right" ? "forehand" : "backhand",
+    // Only the camera can see where the player is actually standing.
+    stance: swing.stance,
   };
 }

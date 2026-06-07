@@ -92,6 +92,28 @@ export const RALLY = {
   pointSettleSeconds: 0.6,
 };
 
+/**
+ * Footwork rewards, applied on top of timing quality.
+ *
+ * Kept small deliberately. Footwork should make a good player better, not make
+ * the game unplayable for someone sitting at a desk or playing on a keyboard —
+ * where stance is absent and every one of these is a no-op.
+ */
+export const FOOTWORK = {
+  /** Quality added for stepping fully across to a wide ball. */
+  bonus: 0.2,
+  /** Quality lost for staying rooted on one. */
+  plantedPenalty: 0.12,
+  /** Further loss for moving away from the ball. */
+  wrongWayPenalty: 0.2,
+  /**
+   * How wide a ball must land, as a fraction of the half court, before footwork
+   * counts at all. Below this the ball is already within reach and demanding a
+   * side-step would punish standing in the right place.
+   */
+  wideThreshold: 0.3,
+};
+
 export const SOLVER = {
   minAngleDeg: -25,
   /** High enough to leave lobs room to arc without clipping the search. */

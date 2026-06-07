@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BALL, COURT } from "./constants";
+import { BALL, COURT, playerRightX } from "./constants";
 import { RALLY, TIMING } from "./config";
 import { chooseShotKind, gradeTiming, resolveShot, solveLaunch } from "./shot";
 import { createRng } from "./rng";
@@ -220,8 +220,36 @@ describe("resolveShot", () => {
   });
 
   it("aims where the player leans", () => {
+    // Averaged over many shots: base dispersion has a standard deviation
+    // comparable to the aim offset itself, so a single sample proves nothing.
+    const meanTargetX = (lateralBias: number) => {
+      const rng = createRng(3);
+      let total = 0;
+      const n = 80;
+      for (let i = 0; i < n; i++) {
+        total += resolveShot({
+          contact,
+          hitter: "near",
+          kind: "topspin",
+          swing: swing({ lateralBias }),
+          quality: 1,
+          rng,
+        }).target.x;
+      }
+      return total / n;
+    };
+
+    // Asserted in the hitter's own frame. The near player faces +z, so their
+    // right is world -x; comparing raw world coordinates here would have hidden
+    // the fact that "aim right" was sending the ball left on screen.
+    const right = playerRightX("near");
+    expect(meanTargetX(-0.9) * right).toBeLessThan(-2);
+    expect(meanTargetX(0.9) * right).toBeGreaterThan(2);
+  });
+
+  it("sends a leaning shot to the correct side of the court", () => {
     const rng = createRng(3);
-    const left = resolveShot({
+    const leanLeft = resolveShot({
       contact,
       hitter: "near",
       kind: "topspin",
@@ -229,7 +257,7 @@ describe("resolveShot", () => {
       quality: 1,
       rng,
     });
-    const right = resolveShot({
+    const leanRight = resolveShot({
       contact,
       hitter: "near",
       kind: "topspin",
@@ -238,10 +266,10 @@ describe("resolveShot", () => {
       rng,
     });
 
-    expect(left.target.x).toBeLessThan(-2);
-    expect(right.target.x).toBeGreaterThan(2);
-    expect(left.prediction.landing!.x).toBeLessThan(
-      right.prediction.landing!.x
+    // Leaning right must put the ball to the hitter's right, in their frame.
+    const right = playerRightX("near");
+    expect(leanLeft.prediction.landing!.x * right).toBeLessThan(
+      leanRight.prediction.landing!.x * right
     );
   });
 

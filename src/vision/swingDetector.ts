@@ -11,6 +11,11 @@
  * degrades gracefully instead.
  */
 
+import {
+  createFootworkState,
+  updateFootwork,
+  type FootworkState,
+} from "./footwork";
 import type { SwingConfig } from "./swingConfig";
 import type { DetectedSwing, DetectorDebug, PoseSample, Point3 } from "./types";
 
@@ -25,6 +30,7 @@ type ArmedSwing = {
   peakPos: Point3;
   peakAboveShoulder: number;
   peakLean: number;
+  peakStance: number;
 };
 
 export type DetectorState = {
@@ -37,6 +43,7 @@ export type DetectorState = {
   /** Set after a swing fires; blocks re-arming until the arm settles. */
   cooling: boolean;
   lastSwingT: number;
+  footwork: FootworkState;
   trace: number[];
   debug: DetectorDebug;
 };
@@ -76,6 +83,7 @@ export function createDetectorState(): DetectorState {
     armed: null,
     cooling: false,
     lastSwingT: -Infinity,
+    footwork: createFootworkState(),
     trace: [],
     debug: {
       speed: 0,
@@ -85,6 +93,8 @@ export function createDetectorState(): DetectorState {
       visibility: 0,
       hand: "right",
       lean: 0,
+      stance: 0,
+      stepSpeed: 0,
       trace: [],
     },
   };
@@ -164,6 +174,9 @@ export function pushSample(
   const speed = Math.max(speedLeft, speedRight);
   const wrist = hand === "left" ? smoothedLeft : smoothedRight;
 
+  const footwork = updateFootwork(state.footwork, hipMid.x, torsoScale, sample.t);
+  next.footwork = footwork;
+
   const lean = (shoulderMid.x - hipMid.x) / torsoScale;
   const aboveShoulder = (wrist.y - shoulderMid.y) / torsoScale;
 
@@ -193,6 +206,7 @@ export function pushSample(
         peakPos: wrist,
         peakAboveShoulder: aboveShoulder,
         peakLean: lean,
+        peakStance: footwork.stance,
       };
     }
   } else {
@@ -204,6 +218,7 @@ export function pushSample(
         peakPos: wrist,
         peakAboveShoulder: aboveShoulder,
         peakLean: lean,
+        peakStance: footwork.stance,
       };
     } else if (
       armed.peakSpeed >= config.minPeakSpeed &&
@@ -221,6 +236,7 @@ export function pushSample(
         },
         wristAboveShoulder: armed.peakAboveShoulder,
         lean: armed.peakLean,
+        stance: armed.peakStance,
       };
       next.lastSwingT = armed.peakT;
       armed = null;
@@ -241,6 +257,8 @@ export function pushSample(
     visibility: sample.visibility,
     hand,
     lean,
+    stance: footwork.stance,
+    stepSpeed: footwork.speed,
     trace,
   };
 

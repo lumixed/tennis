@@ -8,7 +8,7 @@
  */
 
 import { RALLY } from "./config";
-import { COURT } from "./constants";
+import { COURT, playerRightX } from "./constants";
 import { gaussian, next, type Rng } from "./rng";
 import type { Side } from "./scoring";
 import type { RallyState } from "./rally";
@@ -163,9 +163,13 @@ function planSwing(bot: BotState, rally: RallyState): BotState {
 
   const arc = chooseArc(strike.contact.y, stretched, difficulty, rng);
 
-  // Aim away from where the opponent was last sent.
-  const away = bot.lastOpponentLandingX >= 0 ? -1 : 1;
-  const intent = away * (0.35 + difficulty.aggression * 0.55);
+  // Aim away from where the opponent was last sent. That reasoning is in world
+  // coordinates, but `lateralBias` is expressed from the hitter's own point of
+  // view, so it has to be converted — otherwise the bot diligently hits every
+  // ball straight back to where its opponent is already standing.
+  const awayWorldX = bot.lastOpponentLandingX >= 0 ? -1 : 1;
+  const intent =
+    awayWorldX * playerRightX(bot.side) * (0.35 + difficulty.aggression * 0.55);
   const spray = gaussian(rng) * (0.35 * (1 - difficulty.aggression) + 0.12);
   const lateralBias = clamp(
     intent * (1 - stretched * 0.6) + spray,

@@ -32,6 +32,20 @@ export const COURT = {
   netHalfWidth: 10.97 / 2 + 0.914,
 } as const;
 
+/**
+ * World x direction of a player's right-hand side.
+ *
+ * The near player defends -z and therefore faces +z, which puts their right
+ * hand at world -x; the far player faces the other way. Any input expressed
+ * from the player's point of view — aim from a lean, stance from a step, a
+ * keyboard "aim right" — has to pass through this to reach world coordinates.
+ *
+ * Skipping it is not a subtle error: the camera sits behind the near player, so
+ * world +x is *screen left*, and aiming right would visibly send the ball left.
+ */
+export const playerRightX = (side: "near" | "far"): number =>
+  side === "near" ? -1 : 1;
+
 // ---------------------------------------------------------------------------
 // Ball — ITF spec
 // ---------------------------------------------------------------------------

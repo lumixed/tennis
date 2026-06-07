@@ -121,7 +121,7 @@ export function TuningOverlay({
           warn={(debug?.visibility ?? 0) < swingConfig.minVisibility}
         />
         <Readout label="lean" value={(debug?.lean ?? 0).toFixed(2)} />
-        <Readout label="hand" value={debug?.hand ?? "-"} />
+        <Readout label="stance" value={(debug?.stance ?? 0).toFixed(2)} />
         <Readout label="armed" value={debug?.armed ? "yes" : "no"} />
       </div>
 

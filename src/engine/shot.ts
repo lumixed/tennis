@@ -8,7 +8,7 @@
  */
 
 import type { BallState } from "./ball";
-import { BALL, COURT } from "./constants";
+import { BALL, COURT, playerRightX } from "./constants";
 import { ACCURACY, SHOT_PROFILES, SOLVER, TIMING } from "./config";
 import { gaussian, type Rng } from "./rng";
 import type { Side } from "./scoring";
@@ -233,8 +233,12 @@ export function resolveShot(params: {
   // Aim across the opponent's half. Depth is measured from the net.
   const towards = hitter === "near" ? 1 : -1;
   const depth = lerp(profile.depth, power);
+  // lateralBias is the hitter's own left/right; convert into world x.
   const lateral =
-    swing.lateralBias * COURT.halfSinglesWidth * ACCURACY.aimReach;
+    swing.lateralBias *
+    playerRightX(hitter) *
+    COURT.halfSinglesWidth *
+    ACCURACY.aimReach;
 
   // Three sources of spread: an irreducible base, a penalty for swinging hard,
   // and a penalty for mistiming.

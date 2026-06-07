@@ -7,10 +7,11 @@
  */
 
 import { stepBall, type BallState } from "./ball";
-import { BALL, COURT, PHYSICS_DT } from "./constants";
+import { BALL, COURT, PHYSICS_DT, playerRightX } from "./constants";
 import { RALLY, SHOT_PROFILES, SOLVER } from "./config";
 import { awardPoint, otherSide, type MatchState, type Side } from "./scoring";
 import { createRng, gaussian, type Rng } from "./rng";
+import { footworkModifier } from "./footwork";
 import { chooseShotKind, gradeTiming, resolveShot, solveLaunch } from "./shot";
 import type { ShotKind, SwingEvent, TimingGrade } from "./shotTypes";
 import {
@@ -246,6 +247,10 @@ export function serve(
   // Wider placement and less margin as the serve gets bigger, tightened by the
   // server's skill on the same axis groundstrokes use.
   const scatter = (0.35 + power * 0.75) / Math.max(0.2, state.precision[server]);
+  // Inside the boxSign multiplication, lateralBias is a wide-versus-down-the-T
+  // control rather than a left/right one: a bigger magnitude places the serve
+  // nearer the outside of the box. That needs no frame conversion, because it
+  // is not expressed in left/right terms at all.
   const lateral =
     boxSign * (1.0 + power * 1.9 + swing.lateralBias * 0.8) +
     gaussian(state.rng) * scatter;
@@ -304,6 +309,12 @@ export function applySwing(
     state.strike.idealTimeMs
   );
 
+  // Footwork adjusts how well the shot comes off, never whether it connects —
+  // a player who covered the court should hit a better ball, not be the only
+  // one allowed to hit at all.
+  const footwork = footworkModifier(swing.stance, state.strike.landing?.x, striker);
+  const adjustedQuality = Math.max(0, Math.min(1, quality + footwork));
+
   if (grade === "miss") {
     return {
       state,
@@ -322,7 +333,7 @@ export function applySwing(
     hitter: striker,
     kind,
     swing,
-    quality,
+    quality: adjustedQuality,
     rng: state.rng,
     precision: state.precision[striker],
   });

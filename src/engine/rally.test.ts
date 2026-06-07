@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BALL, COURT } from "./constants";
+import { BALL, COURT, playerRightX } from "./constants";
 import { TIMING } from "./config";
 import { createRng } from "./rng";
 import { createMatch, type Side } from "./scoring";
@@ -331,6 +331,81 @@ describe("swinging", () => {
     ).state;
 
     expect(state.serveFaults).toBe(0);
+  });
+});
+
+describe("footwork", () => {
+  /** A live rally with `near` on strike against a ball landing to their right. */
+  function wideToNear(stance: number | undefined): RallyState {
+    const base = createRally(createMatch("near"), createRng(5));
+    const landingX = COURT.halfSinglesWidth * 0.9 * playerRightX("near");
+    return {
+      ...base,
+      phase: "in-play",
+      striker: "near",
+      lastHitter: "far",
+      hitCount: 2,
+      ball: { pos: vec(landingX, 1.0, -9), vel: vec(0, 0, 0), spin: vec() },
+      strike: {
+        striker: "near",
+        idealTimeMs: base.timeMs,
+        contact: vec(landingX, 1.0, -9),
+        landing: vec(landingX, BALL.radius, -8),
+      },
+      // Held constant so the only variable is stance.
+      rng: createRng(5),
+    };
+  }
+
+  const speedAfter = (stance: number | undefined): number => {
+    const state = wideToNear(stance);
+    const result = applySwing(
+      state,
+      swing({ t: state.timeMs, arc: "flat", power: 0.7, stance })
+    );
+    const { x, y, z } = result.state.ball.vel;
+    return Math.hypot(x, y, z);
+  };
+
+  it("makes a stepped shot better than a rooted one", () => {
+    expect(speedAfter(1)).toBeGreaterThan(speedAfter(0));
+  });
+
+  it("makes a rooted shot better than moving the wrong way", () => {
+    expect(speedAfter(0)).toBeGreaterThan(speedAfter(-1));
+  });
+
+  it("leaves swings without stance completely unaffected", () => {
+    // Keyboard and bot swings carry no stance and must play exactly as before.
+    const state = wideToNear(undefined);
+    const withoutStance = applySwing(
+      state,
+      swing({ t: state.timeMs, arc: "flat", power: 0.7 })
+    );
+
+    const control = wideToNear(undefined);
+    const explicitZero = applySwing(
+      control,
+      swing({ t: control.timeMs, arc: "flat", power: 0.7, stance: 0 })
+    );
+
+    // An absent stance is a no-op; an explicit rooted stance is a penalty.
+    expect(withoutStance.state.ball.vel).not.toEqual(
+      explicitZero.state.ball.vel
+    );
+    expect(speedAfter(undefined)).toBeGreaterThan(speedAfter(0));
+  });
+
+  it("still connects however bad the footwork", () => {
+    // Footwork changes how well the ball comes off, never whether it connects.
+    for (const stance of [-1, -0.5, 0, 0.5, 1]) {
+      const state = wideToNear(stance);
+      const result = applySwing(
+        state,
+        swing({ t: state.timeMs, arc: "flat", power: 0.7, stance })
+      );
+      expect(result.events[0]).toMatchObject({ type: "hit", by: "near" });
+    }
   });
 });
 

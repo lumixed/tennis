@@ -36,6 +36,8 @@ export type DetectedSwing = {
   wristAboveShoulder: number;
   /** Torso lean at the peak, -1..1. */
   lean: number;
+  /** Lateral stance at the peak, -1..1. See vision/footwork.ts. */
+  stance: number;
 };
 
 /** Live figures for the tuning overlay. */
@@ -47,6 +49,10 @@ export type DetectorDebug = {
   visibility: number;
   hand: "left" | "right";
   lean: number;
+  /** Lateral stance, -1..1. */
+  stance: number;
+  /** Lateral movement speed in torso-lengths/s. */
+  stepSpeed: number;
   /** Recent speed history for the trace, oldest first. */
   trace: number[];
 };

@@ -26,9 +26,15 @@ than a shortcut. See [DESIGN.md](DESIGN.md) for why.
 | reach above your shoulders | overhead / smash |
 | lean left or right | aim |
 | swing faster | more power |
+| step across to a wide ball | better shot |
 
 Stand back far enough that your hips *and* shoulders are in frame — the detector
-measures speed in torso-lengths, so it needs to see your torso.
+measures speed in torso-lengths, so it needs to see your torso, and it reads
+footwork from your hips moving.
+
+Leaning aims the ball; actually *stepping* toward a ball that pulls you wide
+makes the shot come off better, and standing rooted makes it worse. Footwork
+never decides whether you connect — only how well.
 
 Press **T** in game for the tuning panel.
 
@@ -61,6 +67,9 @@ If a swing is not registering, watch the trace:
 - `vis` reads red → you are out of frame or too dark
 - shots feel late → raise **Latency comp**
 - one swing registers as two → raise **Refractory**
+- `stance` sits near 0 even when you step → you are not moving far enough for
+  the frame, or the neutral centre has drifted onto you; stand still a moment
+  and try again
 
 ## Layout
 
@@ -79,14 +88,15 @@ The engine is pure and deterministic: same seed, same match. It never learns
 whether a swing came from a camera, a keyboard or the bot.
 
 ```bash
-npm test         # 115 tests
+npm test         # 142 tests
 npm run typecheck
 npm run build
 ```
 
 ## Status
 
-M0–M6 complete: physics, rally engine, bot, renderer, pose input, game feel.
+M0–M7 complete: physics, rally engine, bot, renderer, pose input, game feel,
+footwork.
 
 **The camera path has never been run against a real webcam.** The gesture logic
 is covered by synthetic-pose tests — classification, frame-rate independence,
@@ -95,4 +105,4 @@ denied permission) degrades to keyboard cleanly. But the *thresholds* are still
 defaults, and defaults are guesses. First real session should be ten minutes in
 front of the tuning panel.
 
-Not built yet: the footwork layer, and shot-event multiplayer.
+Not built yet: shot-event multiplayer.

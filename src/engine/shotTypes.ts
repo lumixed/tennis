@@ -19,6 +19,15 @@ export type SwingEvent = {
   /** Lateral aim from torso lean, -1 (left) .. 1 (right). */
   lateralBias: number;
   side: SwingSide;
+  /**
+   * Where the player was standing relative to their neutral position, -1..1.
+   *
+   * Separate from `lateralBias`: lean is a shoulder rotation you can do rooted
+   * to the spot, stance is the hips actually having moved. Optional because
+   * only the camera can observe it — the keyboard and the bot leave it unset,
+   * and an unset stance applies no modifier at all.
+   */
+  stance?: number;
 };
 
 export type ShotKind = "topspin" | "drive" | "slice" | "smash" | "lob" | "serve";

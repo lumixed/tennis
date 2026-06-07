@@ -103,6 +103,40 @@ Same `SwingEvent` interface as the player. Difficulty is three knobs:
 - **placement error radius** — metres of scatter on its target
 - **aggression** — how often it goes for a winner vs a safe rally ball
 
+## Coordinates
+
+`+x` is one side of the court in world space, but the camera sits *behind* the
+near player, so **world +x renders on screen left**. The near player defends -z
+and therefore faces +z, putting their right hand at world -x; the far player is
+the mirror image.
+
+Anything expressed from a player's point of view — aim from a lean, stance from
+a step, a keyboard "aim right" — must pass through `playerRightX(side)` to reach
+world coordinates. This is not a pedantic distinction: skipping it made pressing
+*right* visibly send the ball *left*, and made the footwork layer penalise the
+near player precisely for stepping the correct way.
+
+The rule of thumb is that a player-relative quantity and a world coordinate must
+never be compared without a conversion between them.
+
+## Footwork
+
+The avatar still runs to the ball — that decision is load-bearing and is not
+undone. Footwork adds *credit for covering the court yourself*: step across for
+a ball pulling you wide and the shot comes off better, stand rooted and it comes
+off worse.
+
+It reads the hips actually translating across the frame, which is distinct from
+the torso lean that drives aim — lean is a shoulder rotation you can do standing
+still, a step is work. The neutral centre drifts slowly, so a player who sets up
+off-centre does not collect a free bonus all match, but a genuine step still
+registers.
+
+Footwork changes how well a shot comes off, never whether it connects. A player
+who covered the court should hit a better ball, not be the only one allowed to
+hit at all. Stance is optional on `SwingEvent` and only the camera reports it,
+so keyboard and bot play are completely unaffected.
+
 ## Reading the camera
 
 The detector is pure — state in, state out, no camera, no MediaPipe, no clock —
