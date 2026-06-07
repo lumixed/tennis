@@ -1,0 +1,42 @@
+:root {
+  --bg: #0a0e14;
+  --fg: #e6edf3;
+  --accent: #c8ff3d;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+
+.boot {
+  display: grid;
+  place-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.boot h1 {
+  font-size: 3rem;
+  margin: 0 0 0.25rem;
+  letter-spacing: -0.03em;
+}
+
+.boot p {
+  margin: 0;
+  opacity: 0.6;
+}
