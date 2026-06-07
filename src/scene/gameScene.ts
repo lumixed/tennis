@@ -32,7 +32,20 @@ export type GameScene = {
   dispose: () => void;
 };
 
-export function createGameScene(canvas: HTMLCanvasElement): GameScene {
+/**
+ * Build the scene into `container`.
+ *
+ * The canvas is created here rather than passed in, so every scene owns a fresh
+ * one. Reusing a single canvas element meant each remount built a second
+ * WebGLRenderer on a context whose resources the previous `dispose()` had just
+ * released — React StrictMode remounts every effect in development, and the
+ * result was an intermittently black, half-drawn court.
+ */
+export function createGameScene(container: HTMLElement): GameScene {
+  const canvas = document.createElement("canvas");
+  canvas.className = "scene-canvas";
+  container.appendChild(canvas);
+
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: true,
@@ -151,6 +164,7 @@ export function createGameScene(canvas: HTMLCanvasElement): GameScene {
 
     dispose() {
       renderer.dispose();
+      canvas.remove();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DIFFICULTIES } from "./engine/bot";
 import type { TimingGrade } from "./engine/shotTypes";
+import { createSound } from "./audio/sound";
 import { createSession, type Controller, type Session } from "./game/session";
+import { createTimeControl } from "./game/timeControl";
 import { createKeyboardInput } from "./input/keyboard";
 import { createGameScene } from "./scene/gameScene";
 import { Hud, type HudSnapshot } from "./ui/Hud";
@@ -130,21 +132,38 @@ function Key({ label, action }: { label: string; action: string }) {
 }
 
 function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<Session | null>(null);
   const [snapshot, setSnapshot] = useState<HudSnapshot | null>(null);
   const [pose, setPose] = useState<PoseInput | null>(null);
   const [poseError, setPoseError] = useState<string | null>(null);
   const [showTuning, setShowTuning] = useState(false);
+  const [muted, setMuted] = useState(false);
+  const soundRef = useRef<ReturnType<typeof createSound> | null>(null);
+
+  const toggleMute = useCallback(() => {
+    setMuted((wasMuted) => {
+      soundRef.current?.setMuted(!wasMuted);
+      return !wasMuted;
+    });
+  }, []);
 
   const handleExit = useCallback(() => onExit(), [onExit]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const stage = stageRef.current;
+    if (!stage) return;
 
-    const scene = createGameScene(canvas);
+    const scene = createGameScene(stage);
     const input = createKeyboardInput();
+    const sound = createSound();
+    soundRef.current = sound;
+    const time = createTimeControl();
+
+    // Browsers hold audio until a gesture; any key or click releases it.
+    const unlockAudio = () => sound.resume();
+    window.addEventListener("keydown", unlockAudio);
+    window.addEventListener("pointerdown", unlockAudio);
 
     let poseInput: PoseInput | null = null;
     if (setup.inputMode === "camera" && setup.nearControl === "human") {
@@ -157,6 +176,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
 
     const onTuningKey = (event: KeyboardEvent) => {
       if (event.code === "KeyT") setShowTuning((visible) => !visible);
+      if (event.code === "KeyM") toggleMute();
     };
     window.addEventListener("keydown", onTuningKey);
 
@@ -169,8 +189,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     sessionRef.current = session;
 
     const resize = () => {
-      const { clientWidth, clientHeight } = canvas.parentElement ?? canvas;
-      scene.resize(clientWidth, clientHeight);
+      scene.resize(stage.clientWidth, stage.clientHeight);
     };
     resize();
     window.addEventListener("resize", resize);
@@ -203,17 +222,52 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
         }
       }
 
-      session.advance(dt * 1000);
+      // Hit-stop and slow motion scale the simulation, never the wall clock,
+      // so the engine stays deterministic and simply gets a smaller delta.
+      time.update(dt * 1000);
+      session.advance(dt * 1000 * time.scale);
 
       for (const event of session.events) {
-        if (event.type === "hit" && event.by === "near") {
-          lastGrade = event.grade;
-          lastKind = event.kind;
-          gradeShownAt = now;
-        } else if (event.type === "whiff" && event.by === "near") {
-          lastGrade = "miss";
-          lastKind = null;
-          gradeShownAt = now;
+        switch (event.type) {
+          case "hit": {
+            const power = event.grade === "perfect" ? 1 : event.grade === "good" ? 0.7 : 0.4;
+            sound.hit(
+              power,
+              event.kind === "topspin" || event.kind === "lob"
+                ? "topspin"
+                : event.kind === "drive"
+                  ? "flat"
+                  : event.kind
+            );
+            if (event.by === "near") {
+              time.impact(power);
+              lastGrade = event.grade;
+              lastKind = event.kind;
+              gradeShownAt = now;
+            }
+            break;
+          }
+          case "whiff":
+            if (event.by === "near") {
+              lastGrade = "miss";
+              lastKind = null;
+              gradeShownAt = now;
+            }
+            break;
+          case "serve":
+            sound.hit(0.85, "serve");
+            break;
+          case "bounce":
+            sound.bounce(Math.abs(session.state.ball.vel.y) + 6);
+            break;
+          case "net":
+            sound.net();
+            break;
+          case "point":
+            sound.point(event.winner === "near");
+            // Linger on the shot that ended a real rally, not on a double fault.
+            if (session.state.hitCount >= 4) time.slowMotion(650);
+            break;
         }
       }
 
@@ -291,20 +345,27 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       }
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onTuningKey);
+      window.removeEventListener("keydown", unlockAudio);
+      window.removeEventListener("pointerdown", unlockAudio);
+      sound.dispose();
+      soundRef.current = null;
       input.dispose();
       poseInput?.stop();
       setPose(null);
       scene.dispose();
       sessionRef.current = null;
     };
-  }, [setup]);
+  }, [setup, toggleMute]);
 
   return (
     <div className="court">
-      <canvas ref={canvasRef} />
+      <div className="stage" ref={stageRef} />
       {snapshot && <Hud snapshot={snapshot} />}
       <button className="exit" onClick={handleExit}>
         ← Menu
+      </button>
+      <button className="mute" onClick={toggleMute} title="Mute (M)">
+        {muted ? "🔇" : "🔊"}
       </button>
 
       {pose && showTuning && (
