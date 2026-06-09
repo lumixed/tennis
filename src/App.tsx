@@ -189,9 +189,19 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     sessionRef.current = session;
 
     const resize = () => {
-      scene.resize(stage.clientWidth, stage.clientHeight);
+      const { clientWidth, clientHeight } = stage;
+      // A zero-sized container yields a 0x0 buffer and a NaN camera aspect, and
+      // nothing recovers it until the window happens to resize. That happens
+      // whenever the stage has not laid out yet, or the page is hidden.
+      if (clientWidth === 0 || clientHeight === 0) return;
+      scene.resize(clientWidth, clientHeight);
     };
     resize();
+
+    // Observing the element catches layout changes a window listener misses —
+    // first layout, panel toggles, and the page becoming visible again.
+    const observer = new ResizeObserver(resize);
+    observer.observe(stage);
     window.addEventListener("resize", resize);
 
     let lastGrade: TimingGrade | null = null;
@@ -350,6 +360,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       if (import.meta.env.DEV) {
         delete (window as unknown as Record<string, unknown>).__tennis;
       }
+      observer.disconnect();
       window.removeEventListener("resize", resize);
       window.removeEventListener("keydown", onTuningKey);
       window.removeEventListener("keydown", unlockAudio);
