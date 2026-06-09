@@ -712,3 +712,19 @@ button {
 .calib-problem {
   color: #ffc93d;
 }
+
+.footwork {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  animation: pop 0.28s ease;
+}
+
+.footwork-good {
+  color: var(--near);
+}
+
+.footwork-bad {
+  color: #ffc93d;
+}

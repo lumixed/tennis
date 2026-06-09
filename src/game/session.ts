@@ -41,8 +41,17 @@ export type SessionOptions = {
 
 export type Session = {
   state: RallyState;
-  /** Events produced by the most recent `advance`. */
+  /**
+   * Events produced so far this frame, by swings and by `advance` alike.
+   *
+   * Cleared by `beginFrame`, never by `advance`: the player's own swings are
+   * submitted before `advance` runs, so clearing there discarded every event
+   * from their own shot — no sound, no hit-stop, no timing feedback, and only
+   * the bot's shots ever registering.
+   */
   events: RallyEvent[];
+  /** Call once at the top of each frame, before submitting any input. */
+  beginFrame: () => void;
   advance: (dtMs: number) => void;
   /** Feed a swing from a human input adapter. */
   swing: (event: SwingEvent) => void;
@@ -95,9 +104,11 @@ export function createSession(options: SessionOptions): Session {
       session.events.push(...result.events);
     },
 
-    advance(dtMs) {
+    beginFrame() {
       session.events = [];
+    },
 
+    advance(dtMs) {
       // Cap the delta so a backgrounded tab does not fast-forward the match.
       const dt = Math.min(dtMs, 100);
 

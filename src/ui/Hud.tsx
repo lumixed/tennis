@@ -17,6 +17,10 @@ export type HudSnapshot = {
   aim: number;
   lastGrade: TimingGrade | null;
   lastKind: string | null;
+  /** Quality the last shot's footwork added or removed, or null if unknown. */
+  lastFootwork: number | null;
+  /** Live stance from the camera, -1..1, or null when not on camera. */
+  stance: number | null;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
@@ -73,13 +77,17 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
             )}
           </div>
         )}
+        <FootworkTag value={snapshot.lastFootwork} />
       </div>
 
       <div className="hud-bottom">
         <TimingMeter timeToStrike={snapshot.timeToStrike} />
         <div className="hud-meters">
           <Meter label="Power" value={snapshot.charge} />
-          <AimMeter value={snapshot.aim} />
+          <AimMeter label="Aim" value={snapshot.aim} />
+          {snapshot.stance !== null && (
+            <AimMeter label="Stance" value={snapshot.stance} />
+          )}
         </div>
         {snapshot.awaitingServe && (
           <div className="hud-prompt">Hold a swing key to serve</div>
@@ -160,10 +168,28 @@ function Meter({ label, value }: { label: string; value: number }) {
   );
 }
 
-function AimMeter({ value }: { value: number }) {
+/**
+ * Feedback for the footwork mechanic.
+ *
+ * Footwork silently changes how well a shot comes off, and a mechanic you
+ * cannot observe is one you cannot learn — so when it mattered, say so.
+ */
+function FootworkTag({ value }: { value: number | null }) {
+  // Below this the ball was near enough that footwork was not being asked for.
+  if (value === null || Math.abs(value) < 0.02) return null;
+
+  const good = value > 0;
+  return (
+    <div className={good ? "footwork footwork-good" : "footwork footwork-bad"}>
+      {good ? "Good footwork" : "Flat-footed"}
+    </div>
+  );
+}
+
+function AimMeter({ label, value }: { label: string; value: number }) {
   return (
     <div className="meter">
-      <span className="meter-label">Aim</span>
+      <span className="meter-label">{label}</span>
       <div className="meter-track meter-aim">
         <div
           className="meter-aim-dot"

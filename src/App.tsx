@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DIFFICULTIES } from "./engine/bot";
-import type { TimingGrade } from "./engine/shotTypes";
+import type { SwingEvent, TimingGrade } from "./engine/shotTypes";
 import { createSound } from "./audio/sound";
 import { createSession, type Controller, type Session } from "./game/session";
 import { createTimeControl } from "./game/timeControl";
@@ -206,6 +206,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
 
     let lastGrade: TimingGrade | null = null;
     let lastKind: string | null = null;
+    let lastFootwork: number | null = null;
+    /** Dev-only swings injected through the same door pose swings use. */
+    const injected: SwingEvent[] = [];
     let gradeShownAt = 0;
     let hudAccumulator = 0;
     let last = performance.now();
@@ -216,11 +219,19 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     /** One frame of work, shared by the rAF loop and the dev pump. */
     const frameStep = (now: number, dt: number) => {
       const frameStartedAt = performance.now();
+      // Must precede any input: swings submitted below append to this buffer.
+      session.beginFrame();
       input.update(now, dt);
 
       if (setup.nearControl === "human") {
         for (const swing of input.drain()) {
           // Stamp against engine time; the keyboard has no sensor lag to undo.
+          session.swing({ ...swing, t: session.state.timeMs });
+        }
+
+        // Injected first, on the same path and in the same frame as a real
+        // camera swing, so a dev harness exercises the true code path.
+        for (const swing of injected.splice(0, injected.length)) {
           session.swing({ ...swing, t: session.state.timeMs });
         }
 
@@ -256,6 +267,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
               time.impact(power);
               lastGrade = event.grade;
               lastKind = event.kind;
+              lastFootwork = event.footwork;
               gradeShownAt = now;
             }
             break;
@@ -264,6 +276,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
             if (event.by === "near") {
               lastGrade = "miss";
               lastKind = null;
+              lastFootwork = null;
               gradeShownAt = now;
             }
             break;
@@ -307,6 +320,8 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           aim: input.aim,
           lastGrade: now - gradeShownAt < 1100 ? lastGrade : null,
           lastKind: now - gradeShownAt < 1100 ? lastKind : null,
+          lastFootwork: now - gradeShownAt < 1100 ? lastFootwork : null,
+          stance: poseInput?.debug?.stance ?? null,
           rallyShots: state.hitCount,
           renderMs: frameCostMs,
           phase: state.phase,
@@ -334,6 +349,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__tennis = {
         session,
+        injectSwing(event: SwingEvent) {
+          injected.push(event);
+        },
         pump(seconds: number, stepMs = 16) {
           // Runs the same frameStep the rAF loop does, so input handling is
           // exercised too rather than only physics and rendering.

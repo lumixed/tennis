@@ -4,6 +4,11 @@
  * Stylised on purpose. The avatar auto-positions to the ball, so its job is to
  * make the ball's arrival *legible* — where it is going and when it will be
  * struck — rather than to be anatomically convincing.
+ *
+ * It does have to look like it is *moving*, though. A figure that slides
+ * sideways without its legs changing reads as a bug rather than as a player
+ * covering the court, which undermines the auto-positioning the whole design
+ * rests on.
  */
 
 import * as THREE from "three";
@@ -19,8 +24,11 @@ export type Avatar = {
   update: (dt: number) => void;
 };
 
-const BODY_HEIGHT = 1.15;
+const HIP_Y = 0.92;
 const SHOULDER_Y = 1.35;
+
+/** Lateral speed, m/s, at which the run cycle is at full amplitude. */
+const FULL_STRIDE_SPEED = 4.5;
 
 export function createAvatar(side: Side, color: number): Avatar {
   const group = new THREE.Group();
@@ -31,35 +39,57 @@ export function createAvatar(side: Side, color: number): Avatar {
     roughness: 0.55,
     metalness: 0.05,
   });
+  const kitMaterial = new THREE.MeshStandardMaterial({
+    color: 0x1b2733,
+    roughness: 0.8,
+  });
 
-  const legs = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.17, 0.6, 6, 12),
-    new THREE.MeshStandardMaterial({ color: 0x1b2733, roughness: 0.8 })
-  );
-  legs.position.y = 0.46;
-  legs.castShadow = true;
-  group.add(legs);
+  /**
+   * Everything above the hips, so the torso can lean without dragging the legs
+   * off the ground with it.
+   */
+  const body = new THREE.Group();
+  body.position.y = HIP_Y;
+  group.add(body);
 
   const torso = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.24, BODY_HEIGHT * 0.5, 6, 14),
+    new THREE.CapsuleGeometry(0.24, 0.58, 6, 14),
     material
   );
-  torso.position.y = 1.06;
+  torso.position.y = 0.14;
   torso.castShadow = true;
-  group.add(torso);
+  body.add(torso);
 
   const head = new THREE.Mesh(
     new THREE.SphereGeometry(0.17, 18, 14),
     new THREE.MeshStandardMaterial({ color: 0xe8c9a0, roughness: 0.7 })
   );
-  head.position.y = 1.62;
+  head.position.y = 0.7;
   head.castShadow = true;
-  group.add(head);
+  body.add(head);
+
+  // Legs pivot at the hip so they can scissor.
+  const makeLeg = (offset: number) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(offset, HIP_Y, 0);
+    const limb = new THREE.Mesh(
+      new THREE.CapsuleGeometry(0.135, 0.5, 5, 10),
+      kitMaterial
+    );
+    limb.position.y = -0.42;
+    limb.castShadow = true;
+    pivot.add(limb);
+    group.add(pivot);
+    return pivot;
+  };
+
+  const legLeft = makeLeg(-0.12);
+  const legRight = makeLeg(0.12);
 
   // The arm pivots at the shoulder; the racket hangs off its end.
   const arm = new THREE.Group();
-  arm.position.set(0.22 * facing, SHOULDER_Y, 0);
-  group.add(arm);
+  arm.position.set(0.22 * facing, SHOULDER_Y - HIP_Y, 0);
+  body.add(arm);
 
   const upperArm = new THREE.Mesh(
     new THREE.CapsuleGeometry(0.07, 0.42, 5, 10),
@@ -80,13 +110,13 @@ export function createAvatar(side: Side, color: number): Avatar {
   handle.position.y = -0.11;
   racket.add(handle);
 
-  const head3d = new THREE.Mesh(
+  const rim = new THREE.Mesh(
     new THREE.TorusGeometry(0.15, 0.018, 8, 24),
     new THREE.MeshStandardMaterial({ color: 0xf2f7fa, roughness: 0.4 })
   );
-  head3d.position.y = -0.36;
-  head3d.rotation.y = Math.PI / 2;
-  racket.add(head3d);
+  rim.position.y = -0.36;
+  rim.rotation.y = Math.PI / 2;
+  racket.add(rim);
 
   const strings = new THREE.Mesh(
     new THREE.CircleGeometry(0.14, 20),
@@ -108,6 +138,13 @@ export function createAvatar(side: Side, color: number): Avatar {
   );
   group.rotation.y = side === "near" ? 0 : Math.PI;
 
+  // Motion state.
+  let velocityX = 0;
+  let runPhase = 0;
+  // Offset by side so the two players do not bob in lockstep, without
+  // reaching for randomness the rest of the project deliberately avoids.
+  let idlePhase = side === "near" ? 0 : Math.PI * 0.6;
+
   // Swing animation state.
   let swingTime = Infinity;
   let swingFrom = 0;
@@ -121,11 +158,17 @@ export function createAvatar(side: Side, color: number): Avatar {
     group,
 
     moveTowards(x, dt) {
+      if (dt <= 0) return;
       // Ease rather than teleport; the lag reads as the player running.
       const limit = COURT.halfSinglesWidth + 1.6;
       const target = Math.max(-limit, Math.min(limit, x));
+      const previous = group.position.x;
       const k = 1 - Math.exp(-6 * dt);
-      group.position.x += (target - group.position.x) * k;
+      group.position.x += (target - previous) * k;
+
+      // Smoothed so the stride does not stutter on a single slow frame.
+      const instant = (group.position.x - previous) / dt;
+      velocityX += (instant - velocityX) * Math.min(1, dt * 12);
     },
 
     swing(arc) {
@@ -150,9 +193,34 @@ export function createAvatar(side: Side, color: number): Avatar {
     },
 
     update(dt) {
-      if (swingTime === Infinity) return;
-      swingTime += dt;
+      const speed = Math.abs(velocityX);
+      const effort = Math.min(1, speed / FULL_STRIDE_SPEED);
 
+      // Legs scissor in the frontal plane, which is the plane the camera sees
+      // from behind the baseline — a fore-and-aft stride would be invisible.
+      runPhase += (4 + effort * 12) * dt;
+      const stride = Math.sin(runPhase) * effort * 0.42;
+      legLeft.rotation.z = stride;
+      legRight.rotation.z = -stride;
+
+      // Idle: a small split-step bob, so a waiting player is not a statue.
+      idlePhase += dt * 3.2;
+      const bob = Math.sin(idlePhase) * 0.012 * (1 - effort);
+      const strideBob = Math.abs(Math.sin(runPhase)) * effort * 0.045;
+      group.position.y = bob + strideBob;
+
+      // Lean into the run. Computed in the avatar's own frame, since the far
+      // player is rotated to face the other way.
+      const localVelocity = velocityX * facing;
+      body.rotation.z = -Math.max(-0.32, Math.min(0.32, localVelocity * 0.07));
+
+      if (swingTime === Infinity) {
+        arm.rotation.x = restAngle;
+        arm.rotation.z = 0;
+        return;
+      }
+
+      swingTime += dt;
       if (swingTime >= SWING_DURATION) {
         swingTime = Infinity;
         arm.rotation.x = restAngle;

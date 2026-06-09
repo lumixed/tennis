@@ -251,6 +251,17 @@ describe("strike windows", () => {
     expect(lead).toBeGreaterThan(TIMING.latencyCompensationMs * 3);
   });
 
+  it("reports when the ball will land, not just where", () => {
+    // The landing marker converges on the bounce, so it needs the moment as
+    // well as the place.
+    const ball = { pos: vec(0, 1, -2), vel: vec(0, 3, 18), spin: vec() };
+    const window = computeStrikeWindow(ball, 5000, "far")!;
+
+    expect(window.landingTimeMs).toBeGreaterThan(5000);
+    // The bounce must precede the contact, which happens on the way back down.
+    expect(window.landingTimeMs).toBeLessThan(window.idealTimeMs);
+  });
+
   it("returns nothing when the ball is not coming to the striker", () => {
     const heading = {
       pos: vec(0, 1, -2),
@@ -351,6 +362,7 @@ describe("footwork", () => {
         idealTimeMs: base.timeMs,
         contact: vec(landingX, 1.0, -9),
         landing: vec(landingX, BALL.radius, -8),
+        landingTimeMs: base.timeMs,
       },
       // Held constant so the only variable is stance.
       rng: createRng(5),
@@ -394,6 +406,38 @@ describe("footwork", () => {
       explicitZero.state.ball.vel
     );
     expect(speedAfter(undefined)).toBeGreaterThan(speedAfter(0));
+  });
+
+  it("reports the footwork adjustment on the hit event", () => {
+    // Silent mechanics cannot be learned; the HUD needs this to show it.
+    const stepped = wideToNear(1);
+    const good = applySwing(
+      stepped,
+      swing({ t: stepped.timeMs, arc: "flat", power: 0.7, stance: 1 })
+    ).events[0];
+
+    const rooted = wideToNear(0);
+    const bad = applySwing(
+      rooted,
+      swing({ t: rooted.timeMs, arc: "flat", power: 0.7, stance: 0 })
+    ).events[0];
+
+    expect(good).toMatchObject({ type: "hit" });
+    expect(bad).toMatchObject({ type: "hit" });
+    if (good?.type !== "hit" || bad?.type !== "hit") throw new Error("not hits");
+
+    expect(good.footwork).toBeGreaterThan(0);
+    expect(bad.footwork).toBeLessThan(0);
+  });
+
+  it("reports zero footwork when the swing carried no stance", () => {
+    const state = wideToNear(undefined);
+    const event = applySwing(
+      state,
+      swing({ t: state.timeMs, arc: "flat", power: 0.7 })
+    ).events[0];
+
+    expect(event).toMatchObject({ type: "hit", footwork: 0 });
   });
 
   it("still connects however bad the footwork", () => {

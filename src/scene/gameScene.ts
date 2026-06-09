@@ -15,6 +15,7 @@ import type { Session } from "../game/session";
 import { createAvatar, type Avatar } from "./avatar";
 import { createBallVisual } from "./ballMesh";
 import { createCourt, PALETTE } from "./court";
+import { createLandingMarker } from "./landingMarker";
 
 /** Which swing animation each resolved shot should play. */
 const KIND_TO_ARC: Record<ShotKind, Parameters<Avatar["swing"]>[0]> = {
@@ -106,6 +107,9 @@ export function createGameScene(container: HTMLElement): GameScene {
   const ball = createBallVisual();
   scene.add(ball.group);
 
+  const landingMarker = createLandingMarker();
+  scene.add(landingMarker.group);
+
   // Camera shake, driven by engine events.
   let shake = 0;
 
@@ -128,6 +132,14 @@ export function createGameScene(container: HTMLElement): GameScene {
 
       const state = session.state;
       ball.update(state.ball.pos, dt, camera);
+
+      landingMarker.update(
+        state.phase === "in-play" ? (state.strike?.landing ?? null) : null,
+        state.strike
+          ? (state.strike.landingTimeMs - state.timeMs) / 1000
+          : 0,
+        dt
+      );
 
       // Each avatar tracks the ball when it is theirs to play, and recentres
       // otherwise — the auto-positioning the whole design rests on.
@@ -170,6 +182,7 @@ export function createGameScene(container: HTMLElement): GameScene {
       renderer.dispose();
       canvas.remove();
       ball.dispose();
+      landingMarker.dispose();
 
       // Matches anything carrying GPU resources, not just Mesh: the ball's glow
       // is a Sprite and its trail is a Line, and both were being leaked.

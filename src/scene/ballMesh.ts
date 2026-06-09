@@ -41,6 +41,14 @@ const REFERENCE_DISTANCE = 19;
 const DISTANCE_COMPENSATION = 0.85;
 const MAX_DISTANCE_SCALE = 2.4;
 
+/**
+ * Positional jump beyond which the trail is cleared rather than drawn.
+ *
+ * A ball at 40 m/s covers ~0.7 m per frame, so this only ever catches a
+ * teleport: a new point, a fault, or a let.
+ */
+const TELEPORT_DISTANCE = 3;
+
 /** Glow sprite size, in multiples of the drawn ball radius. */
 const GLOW_RADIUS_MULTIPLE = 5.5;
 
@@ -184,6 +192,19 @@ export function createBallVisual(): BallVisual {
     group,
 
     update(pos, _dt, camera) {
+      // The ball teleports between points, on a fault, and after a let. Without
+      // this the trail draws a line from wherever the last point died to the
+      // server's hand, straight across the court. A fast ball covers well under
+      // a metre per frame, so anything past this is a jump rather than flight.
+      const previous = history[history.length - 1];
+      if (
+        previous &&
+        Math.hypot(pos.x - previous.x, pos.y - previous.y, pos.z - previous.z) >
+          TELEPORT_DISTANCE
+      ) {
+        history.length = 0;
+      }
+
       ball.position.set(pos.x, pos.y, pos.z);
       glow.position.set(pos.x, pos.y, pos.z);
 

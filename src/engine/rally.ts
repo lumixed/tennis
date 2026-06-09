@@ -44,6 +44,8 @@ export type StrikeWindow = {
   contact: Vec3;
   /** Where the incoming ball is predicted to land. */
   landing: Vec3 | null;
+  /** Engine time in ms at which it is predicted to land. */
+  landingTimeMs: number;
 };
 
 export type RallyEvent =
@@ -55,6 +57,12 @@ export type RallyEvent =
       grade: TimingGrade;
       contact: Vec3;
       errorMs: number;
+      /**
+       * Quality the footwork added or removed. Reported so the player can see
+       * that their step mattered — a mechanic that silently changes your shot
+       * is one you cannot learn.
+       */
+      footwork: number;
     }
   | { type: "whiff"; by: Side; errorMs: number }
   | { type: "net"; by: Side }
@@ -200,6 +208,7 @@ export function computeStrikeWindow(
         idealTimeMs: nowMs + elapsed * 1000,
         contact: next.pos,
         landing: flight.landing,
+        landingTimeMs: nowMs + flight.timeToLand * 1000,
       };
     }
 
@@ -214,6 +223,7 @@ export function computeStrikeWindow(
     idealTimeMs: nowMs + apexTime * 1000,
     contact: apexPos,
     landing: flight.landing,
+    landingTimeMs: nowMs + flight.timeToLand * 1000,
   };
 }
 
@@ -353,7 +363,9 @@ export function applySwing(
 
   return {
     state: next,
-    events: [{ type: "hit", by: striker, kind, grade, contact, errorMs }],
+    events: [
+      { type: "hit", by: striker, kind, grade, contact, errorMs, footwork },
+    ],
   };
 }
 
