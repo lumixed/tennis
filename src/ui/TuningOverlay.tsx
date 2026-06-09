@@ -204,6 +204,11 @@ export function TuningOverlay({
         />
         <Readout label="dropped" value={String(stats.dropped)} />
         <Readout
+          label="restarts"
+          value={String(stats.restarts)}
+          warn={stats.restarts > 0}
+        />
+        <Readout
           label="draw ms"
           value={renderMs.toFixed(1)}
           warn={renderMs > 12}
