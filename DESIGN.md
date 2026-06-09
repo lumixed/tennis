@@ -103,6 +103,31 @@ Same `SwingEvent` interface as the player. Difficulty is three knobs:
 - **placement error radius** — metres of scatter on its target
 - **aggression** — how often it goes for a winner vs a safe rally ball
 
+## Reading the camera
+
+The detector is pure — state in, state out, no camera, no MediaPipe, no clock —
+so gesture logic is tested against synthetic swings rather than by waving at a
+laptop and hoping. Three decisions carry most of the weight:
+
+**Speeds are measured in torso-lengths per second, not pixels.** Normalising by
+the shoulder-to-hip distance is what stops every threshold breaking when the
+player stands closer to or further from the camera.
+
+**The filters are time constants, not per-frame blend factors.** A fixed
+per-frame EMA smooths twice as hard at 30 fps as at 60, and the identical
+physical swing measured a peak of 7.8 on one and 8.9 on the other — shot power
+would have depended on the player's webcam.
+
+**Swings fire on the confirmed peak, not the end of the follow-through.**
+Waiting for the arm to stop would hand the engine a swing ~150 ms stale, by
+which time the ball has moved on. The event is dated to the peak frame either
+way, so grading stays honest.
+
+Latency compensation lives here and nowhere else. The engine grades swing
+timestamps at face value, because the bot and the keyboard have no sensor lag to
+undo — applying a camera's compensation to them would bias every one of their
+swings early.
+
 ## Tuning overlay
 
 Swing thresholds cannot be tuned from synthetic tests — they depend on real bodies, real lighting, and real camera placement. So the pose milestone ships **with** a live overlay: skeleton wireframe, wrist velocity trace, hit-zone volume, and a slider for every threshold, adjustable while playing. Tuning is a ten-minute session in front of the camera, not a deferred TODO.

@@ -5,10 +5,15 @@ import { createSession, type Controller, type Session } from "./game/session";
 import { createKeyboardInput } from "./input/keyboard";
 import { createGameScene } from "./scene/gameScene";
 import { Hud, type HudSnapshot } from "./ui/Hud";
+import { TuningOverlay } from "./ui/TuningOverlay";
+import { createPoseInput, type PoseInput } from "./vision/poseInput";
+
+export type InputMode = "keyboard" | "camera";
 
 type Setup = {
   difficulty: keyof typeof DIFFICULTIES;
   nearControl: Controller;
+  inputMode: InputMode;
 };
 
 export function App() {
@@ -24,6 +29,7 @@ export function App() {
 function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
   const [difficulty, setDifficulty] =
     useState<keyof typeof DIFFICULTIES>("club");
+  const [inputMode, setInputMode] = useState<InputMode>("keyboard");
 
   return (
     <div className="start">
@@ -51,25 +57,60 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
           </div>
         </div>
 
-        <div className="start-keys">
-          <Key label="J / Space" action="Topspin" />
-          <Key label="K" action="Flat drive" />
-          <Key label="L" action="Slice" />
-          <Key label="I" action="Overhead" />
-          <Key label="A / D" action="Aim" />
-          <Key label="hold" action="Charge power" />
+        <div className="start-section">
+          <span className="start-label">Controls</span>
+          <div className="start-options">
+            <button
+              className={inputMode === "keyboard" ? "chip chip-on" : "chip"}
+              onClick={() => setInputMode("keyboard")}
+            >
+              Keyboard
+            </button>
+            <button
+              className={inputMode === "camera" ? "chip chip-on" : "chip"}
+              onClick={() => setInputMode("camera")}
+            >
+              Camera
+            </button>
+          </div>
         </div>
+
+        {inputMode === "keyboard" ? (
+          <div className="start-keys">
+            <Key label="J / Space" action="Topspin" />
+            <Key label="K" action="Flat drive" />
+            <Key label="L" action="Slice" />
+            <Key label="I" action="Overhead" />
+            <Key label="A / D" action="Aim" />
+            <Key label="hold" action="Charge power" />
+          </div>
+        ) : (
+          <div className="start-keys start-camera">
+            <Key label="swing up" action="Topspin" />
+            <Key label="swing down" action="Slice" />
+            <Key label="swing level" action="Flat drive" />
+            <Key label="reach high" action="Overhead" />
+            <Key label="lean" action="Aim" />
+            <Key label="swing fast" action="More power" />
+            <p className="start-note">
+              Stand back so your hips and shoulders are in frame. Press{" "}
+              <kbd>T</kbd> in game to tune detection.
+            </p>
+          </div>
+        )}
 
         <div className="start-actions">
           <button
             className="primary"
-            onClick={() => onStart({ difficulty, nearControl: "human" })}
+            onClick={() => onStart({ difficulty, nearControl: "human", inputMode })}
           >
             Play
           </button>
           <button
             className="secondary"
-            onClick={() => onStart({ difficulty, nearControl: "bot" })}
+            onClick={() =>
+              onStart({ difficulty, nearControl: "bot", inputMode: "keyboard" })
+            }
           >
             Watch bots
           </button>
@@ -92,6 +133,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef<Session | null>(null);
   const [snapshot, setSnapshot] = useState<HudSnapshot | null>(null);
+  const [pose, setPose] = useState<PoseInput | null>(null);
+  const [poseError, setPoseError] = useState<string | null>(null);
+  const [showTuning, setShowTuning] = useState(false);
 
   const handleExit = useCallback(() => onExit(), [onExit]);
 
@@ -101,6 +145,21 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
 
     const scene = createGameScene(canvas);
     const input = createKeyboardInput();
+
+    let poseInput: PoseInput | null = null;
+    if (setup.inputMode === "camera" && setup.nearControl === "human") {
+      poseInput = createPoseInput();
+      setPose(poseInput);
+      void poseInput.start().then(() => {
+        if (poseInput?.status === "error") setPoseError(poseInput.error);
+      });
+    }
+
+    const onTuningKey = (event: KeyboardEvent) => {
+      if (event.code === "KeyT") setShowTuning((visible) => !visible);
+    };
+    window.addEventListener("keydown", onTuningKey);
+
     const session = createSession({
       near: setup.nearControl,
       far: "bot",
@@ -123,18 +182,24 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     let last = performance.now();
     let frame = 0;
 
-    const tick = (now: number) => {
-      frame = requestAnimationFrame(tick);
-
-      const dt = Math.min((now - last) / 1000, 0.1);
-      last = now;
-
+    /** One frame of work, shared by the rAF loop and the dev pump. */
+    const frameStep = (now: number, dt: number) => {
       input.update(now, dt);
 
       if (setup.nearControl === "human") {
         for (const swing of input.drain()) {
           // Stamp against engine time; the keyboard has no sensor lag to undo.
           session.swing({ ...swing, t: session.state.timeMs });
+        }
+
+        if (poseInput) {
+          // Pose swings carry performance.now() timestamps, already latency
+          // compensated. Rebase them onto the engine clock, which runs slower
+          // whenever a frame is dropped and dt gets clamped.
+          const epoch = now - session.state.timeMs;
+          for (const swing of poseInput.update(now)) {
+            session.swing({ ...swing, t: swing.t - epoch });
+          }
         }
       }
 
@@ -182,6 +247,13 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       }
     };
 
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      const dt = Math.min((now - last) / 1000, 0.1);
+      last = now;
+      frameStep(now, dt);
+    };
+
     frame = requestAnimationFrame(tick);
 
     // Dev-only manual pump. Browsers suspend requestAnimationFrame while the
@@ -192,10 +264,12 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       (window as unknown as Record<string, unknown>).__tennis = {
         session,
         pump(seconds: number, stepMs = 16) {
+          // Runs the same frameStep the rAF loop does, so input handling is
+          // exercised too rather than only physics and rendering.
           const steps = Math.round((seconds * 1000) / stepMs);
           for (let i = 0; i < steps; i++) {
-            session.advance(stepMs);
-            scene.render(session, stepMs / 1000);
+            last += stepMs;
+            frameStep(last, stepMs / 1000);
           }
           const state = session.state;
           return {
@@ -216,7 +290,10 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
         delete (window as unknown as Record<string, unknown>).__tennis;
       }
       window.removeEventListener("resize", resize);
+      window.removeEventListener("keydown", onTuningKey);
       input.dispose();
+      poseInput?.stop();
+      setPose(null);
       scene.dispose();
       sessionRef.current = null;
     };
@@ -229,6 +306,26 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       <button className="exit" onClick={handleExit}>
         ← Menu
       </button>
+
+      {pose && showTuning && (
+        <TuningOverlay pose={pose} onClose={() => setShowTuning(false)} />
+      )}
+
+      {pose && !showTuning && pose.status === "running" && (
+        <button className="tuning-open" onClick={() => setShowTuning(true)}>
+          Tune detection (T)
+        </button>
+      )}
+
+      {poseError && (
+        <div className="pose-error">
+          <strong>Camera unavailable</strong>
+          <p>{poseError}</p>
+          <p className="pose-error-hint">
+            Keyboard controls still work: J topspin, K flat, L slice, I overhead.
+          </p>
+        </div>
+      )}
       {snapshot?.match.winner && (
         <div className="result">
           <h2>{snapshot.match.winner === "near" ? "You win" : "Bot wins"}</h2>
