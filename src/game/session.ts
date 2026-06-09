@@ -73,7 +73,28 @@ export type SessionOptions = {
   practice?: boolean;
 };
 
-export type Session = {
+/**
+ * What the render loop, the scene and the HUD actually need.
+ *
+ * Both the single-player session and the networked one satisfy this, so nothing
+ * above them has to know which is driving.
+ */
+export type PlayableSession = {
+  state: RallyState;
+  events: RallyEvent[];
+  readonly stats: MatchStats;
+  readonly nearStake: Stake | null;
+  readonly farStake: Stake | null;
+  readonly difficultyLabel: string | null;
+  readonly rallyLength: number;
+  readonly bestRally: number;
+  readonly totalReturns: number;
+  beginFrame: () => void;
+  advance: (dtMs: number) => void;
+  swing: (event: SwingEvent) => void;
+};
+
+export type Session = PlayableSession & {
   state: RallyState;
   /**
    * Events produced so far this frame, by swings and by `advance` alike.

@@ -42,6 +42,8 @@ export type HudSnapshot = {
   } | null;
   /** Set when rallying without score. */
   practice: { rally: number; best: number; returns: number } | null;
+  /** What to call the other player. */
+  opponentLabel: string;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
@@ -102,7 +104,7 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
           serving={match.server === "near"}
         />
         <ScoreRow
-          label="Bot"
+          label={snapshot.opponentLabel}
           accent="far"
           sets={match.sets.far}
           games={match.games.far}

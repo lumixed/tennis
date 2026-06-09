@@ -3,14 +3,17 @@ import { DIFFICULTIES } from "./engine/bot";
 import type { MatchStats } from "./engine/matchStats";
 import type { SwingEvent, TimingGrade } from "./engine/shotTypes";
 import { createSound } from "./audio/sound";
-import { createSession, type Controller, type Session } from "./game/session";
+import { createSession, type Controller, type PlayableSession } from "./game/session";
 import { createTimeControl } from "./game/timeControl";
 import { createKeyboardInput } from "./input/keyboard";
 import { createGameScene } from "./scene/gameScene";
 import { Hud, type HudSnapshot } from "./ui/Hud";
+import { Lobby } from "./ui/Lobby";
 import { MatchSummary } from "./ui/MatchSummary";
 import { TuningOverlay } from "./ui/TuningOverlay";
 import { createPoseInput, type PoseInput } from "./vision/poseInput";
+import { createNetSession, type NetRole } from "./net/netSession";
+import type { Transport } from "./net/transport";
 
 export type InputMode = "keyboard" | "camera";
 
@@ -19,19 +22,62 @@ type Setup = {
   nearControl: Controller;
   inputMode: InputMode;
   practice?: boolean;
+  /** Set when playing another person rather than the bot. */
+  net?: { role: NetRole; transport: Transport };
 };
 
 export function App() {
   const [setup, setSetup] = useState<Setup | null>(null);
+  const [inLobby, setInLobby] = useState(false);
+  const [inputMode, setInputMode] = useState<InputMode>("keyboard");
 
-  return setup ? (
-    <Court setup={setup} onExit={() => setSetup(null)} />
-  ) : (
-    <StartScreen onStart={setSetup} />
+  if (setup) {
+    return (
+      <Court
+        setup={setup}
+        onExit={() => {
+          setup.net?.transport.close();
+          setSetup(null);
+        }}
+      />
+    );
+  }
+
+  if (inLobby) {
+    return (
+      <Lobby
+        onCancel={() => setInLobby(false)}
+        onConnected={(role, transport) => {
+          setInLobby(false);
+          setSetup({
+            difficulty: "club",
+            nearControl: "human",
+            inputMode,
+            net: { role, transport },
+          });
+        }}
+      />
+    );
+  }
+
+  return (
+    <StartScreen
+      onStart={setSetup}
+      onPlayFriend={(mode) => {
+        setInputMode(mode);
+        setInLobby(true);
+      }}
+    />
   );
 }
 
-function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
+function StartScreen({
+  onStart,
+  onPlayFriend,
+}: {
+  onStart: (setup: Setup) => void;
+  onPlayFriend: (inputMode: InputMode) => void;
+}) {
   const [difficulty, setDifficulty] =
     useState<keyof typeof DIFFICULTIES>("club");
   const [inputMode, setInputMode] = useState<InputMode>("keyboard");
@@ -132,6 +178,9 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
           >
             Practice
           </button>
+          <button className="secondary" onClick={() => onPlayFriend(inputMode)}>
+            Play a friend
+          </button>
           <button
             className="secondary"
             onClick={() =>
@@ -157,7 +206,7 @@ function Key({ label, action }: { label: string; action: string }) {
 
 function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
   const stageRef = useRef<HTMLDivElement>(null);
-  const sessionRef = useRef<Session | null>(null);
+  const sessionRef = useRef<PlayableSession | null>(null);
   const [snapshot, setSnapshot] = useState<HudSnapshot | null>(null);
   const [pose, setPose] = useState<PoseInput | null>(null);
   const [poseError, setPoseError] = useState<string | null>(null);
@@ -223,7 +272,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     };
     window.addEventListener("keydown", onTuningKey);
 
-    const session = createSession({
+    const session = setup.net
+      ? createNetSession(setup.net.role, setup.net.transport)
+      : createSession({
       near: setup.nearControl,
       far: "bot",
       nearDifficulty: DIFFICULTIES[setup.difficulty]!,
@@ -414,6 +465,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
                 returns: session.totalReturns,
               }
             : null,
+          opponentLabel: setup.net ? "Rival" : "Bot",
           nearStake: session.nearStake,
           farStake: session.farStake,
           serveNumber:
@@ -539,6 +591,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
         <MatchSummary
           match={snapshot.match}
           stats={finalStats}
+          opponentLabel={setup.net ? "Rival" : "Bot"}
           onPlayAgain={() => {
             setFinalStats(null);
             setSnapshot(null);

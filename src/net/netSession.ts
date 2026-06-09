@@ -52,6 +52,16 @@ export type NetSession = {
   readonly farStake: Stake | null;
   /** Round-trip estimate in ms, or null before the first exchange. */
   readonly pingMs: number | null;
+  /**
+   * Present so a net session is a drop-in for the single-player one and the
+   * render loop needs no branches. Difficulty is meaningless against a human,
+   * and the practice counters belong to a mode that cannot be networked.
+   */
+  readonly difficultyLevel: null;
+  readonly difficultyLabel: null;
+  readonly rallyLength: number;
+  readonly bestRally: number;
+  readonly totalReturns: number;
   beginFrame: () => void;
   advance: (dtMs: number) => void;
   swing: (event: SwingEvent) => void;
@@ -166,6 +176,18 @@ export function createNetSession(
     },
     get pingMs() {
       return pingMs;
+    },
+    difficultyLevel: null,
+    difficultyLabel: null,
+    get rallyLength() {
+      return stats.currentRally;
+    },
+    get bestRally() {
+      return stats.longestRally;
+    },
+    get totalReturns() {
+      const { perfect, good, weak } = stats.timing;
+      return perfect + good + weak;
     },
 
     beginFrame() {

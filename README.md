@@ -10,8 +10,9 @@ Then open http://localhost:5450.
 
 ## Playing
 
-Pick a starting opponent and a control scheme, then **Play** for a match or
-**Practice** to rally without a scoreboard.
+Pick a starting opponent and a control scheme, then **Play** for a match,
+**Practice** to rally without a scoreboard, or **Play a friend** for
+head-to-head.
 
 The opponent tracks your level as you go, so the starting choice is only where
 it begins. Practice deliberately does not adapt — a target that keeps shifting
@@ -91,6 +92,24 @@ If the game stutters, look at the performance row:
   as hitches rather than general slowness
 - **draw ms** above ~12 → the scene itself is the bottleneck, not the camera
 
+## Playing someone else
+
+**Play a friend** connects two browsers directly, with no server and no
+accounts. One player hosts and gets an invite code; the other pastes it and
+sends back a reply code. Send them however you already talk — the codes are the
+entire handshake.
+
+The host runs the only simulation and the guest renders what it is told, so the
+two can never disagree about the score. Both players see themselves at the near
+end: the guest's whole world is mirrored on arrival.
+
+That design is only viable because of the sport. A swing takes a round trip to
+be acknowledged, which would be fatal in table tennis — but the ball is in the
+air for 700–900 ms here, against an RTT of tens.
+
+There is no TURN server, so two players both behind symmetric NAT will fail to
+connect. Everything else should work.
+
 ## Layout
 
 ```
@@ -100,6 +119,7 @@ src/
   scene/    THREE.js rendering; reads engine state, owns no logic
   input/    keyboard adapter
   game/     session, hit-stop and slow motion
+  net/      head-to-head over WebRTC; protocol and sync are pure and tested
   audio/    synthesised sound, no asset files
   ui/       HUD and the tuning overlay
 ```
@@ -113,16 +133,16 @@ unforced errors, aces, double faults, longest rally and how many of your swings
 were on time — plus one thing to work on.
 
 ```bash
-npm test         # 220 tests
+npm test         # 251 tests
 npm run typecheck
 npm run build
 ```
 
 ## Status
 
-M0–M11 complete: physics, rally engine, bot, renderer, pose input, game feel,
+M0–M12 complete: physics, rally engine, bot, renderer, pose input, game feel,
 footwork, readability, adaptive calibration, an adaptive opponent, match
-presentation and practice mode.
+presentation, practice mode and head-to-head multiplayer.
 
 The camera path has been played and verified on a real webcam: pose runs at
 ~30 fps on the GPU delegate with ~15 ms inference, and a recorded session went
@@ -133,6 +153,7 @@ whoever is in front of the camera without anyone touching a slider. The
 opponent tracks your level between points rather than sitting on a preset.
 Explicit calibration (**T**) is still there when you want to set it directly.
 
-Not built yet: shot-event multiplayer. The groundwork is there — input is
-already discrete swing events, so a peer needs a resolved ball vector per
-stroke rather than continuous state, and no rollback netcode.
+Multiplayer has been tested over a real WebRTC data channel — connection,
+mirroring and a full match with scores agreeing on both ends — but only ever
+looped back within one browser. It has never run between two machines on a real
+network, so latency, NAT traversal and disconnects are unproven in the field.

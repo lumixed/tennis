@@ -11,7 +11,7 @@ import { COURT } from "../engine/constants";
 import type { RallyEvent } from "../engine/rally";
 import type { Side } from "../engine/scoring";
 import type { ShotKind } from "../engine/shotTypes";
-import type { Session } from "../game/session";
+import type { PlayableSession } from "../game/session";
 import { createAvatar, type Avatar } from "./avatar";
 import { createBallVisual } from "./ballMesh";
 import { createCourt, PALETTE } from "./court";
@@ -28,7 +28,7 @@ const KIND_TO_ARC: Record<ShotKind, Parameters<Avatar["swing"]>[0]> = {
 };
 
 export type GameScene = {
-  render: (session: Session, dt: number) => void;
+  render: (session: PlayableSession, dt: number) => void;
   resize: (width: number, height: number) => void;
   dispose: () => void;
   /** Exposed for diagnostics only; nothing in the game reads these. */

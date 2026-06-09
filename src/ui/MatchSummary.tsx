@@ -12,11 +12,13 @@ import type { MatchState, Side } from "../engine/scoring";
 export function MatchSummary({
   match,
   stats,
+  opponentLabel = "Bot",
   onPlayAgain,
   onExit,
 }: {
   match: MatchState;
   stats: MatchStats;
+  opponentLabel?: string;
   onPlayAgain: () => void;
   onExit: () => void;
 }) {
@@ -27,7 +29,7 @@ export function MatchSummary({
     <div className="summary">
       <div className="summary-card">
         <h2 className={won ? "summary-win" : "summary-loss"}>
-          {won ? "You win" : "Bot wins"}
+          {won ? "You win" : `${opponentLabel} wins`}
         </h2>
 
         <div className="summary-sets">
@@ -47,7 +49,7 @@ export function MatchSummary({
             <tr>
               <th />
               <th>You</th>
-              <th>Bot</th>
+              <th>{opponentLabel}</th>
             </tr>
           </thead>
           <tbody>
