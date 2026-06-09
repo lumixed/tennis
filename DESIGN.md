@@ -46,7 +46,7 @@ A swing is detected as **wrist velocity crossing a threshold while travelling th
 type SwingEvent = {
   t: number;            // ms, when the swing peaked
   arc: SwingArc;        // 'low-to-high' | 'high-to-low' | 'overhead' | 'flat'
-  peakSpeed: number;    // normalised units/s — maps to shot power
+  power: number;        // 0..1; the input adapter owns the calibration
   lateralBias: number;  // -1..1 from torso lean — biases placement
   side: 'forehand' | 'backhand';
 };
@@ -111,10 +111,26 @@ Swing thresholds cannot be tuned from synthetic tests — they depend on real bo
 
 - **M0** scaffold + this document
 - **M1** ball physics with Magnus
-- **M2** pure rally engine, scoring, keyboard input
-- **M3** Three.js court, avatars, cameras
-- **M4** bot opponent
+- **M2** pure rally engine, shot solver, scoring
+- **M3** bot opponent
+- **M4** Three.js court, avatars, cameras, keyboard play
 - **M5** pose adapter + tuning overlay
 - **M6** game feel, sound, match presentation
 
 Later: footwork layer, shot-event multiplayer.
+
+The bot moved ahead of the renderer deliberately: it drives the same
+`SwingEvent` interface as the player, so once it exists the first thing the
+scene renders is a live rally rather than an empty court.
+
+### Shot targeting
+
+Magnus makes the trajectory non-analytic, so shots are solved *forwards*: pick a
+target, take launch speed from the swing's power, then search elevation angles
+against the real simulation for one that both clears the net and carries far
+enough, preferring the flattest. Searching the same `stepBall` used in play
+means a predicted shot and a played shot cannot drift apart.
+
+A swing that no angle can rescue still returns its best attempt rather than an
+error — a ball dumped into the net is a legitimate outcome of a bad swing, not a
+case the caller should have to handle.
