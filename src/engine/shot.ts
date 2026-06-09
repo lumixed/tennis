@@ -127,11 +127,17 @@ export function solveLaunch(params: {
   };
 }
 
-/** Grade a swing's timing against the moment the ball reaches the strike zone. */
+/**
+ * Grade a swing's timing against the moment the ball reaches the strike zone.
+ *
+ * `latencyCompensationMs` defaults to zero because most swings have no sensor
+ * lag to undo — the bot and the keyboard report instantly. Only the pose adapter
+ * passes a non-zero value, and it owns that number because it owns the latency.
+ */
 export function gradeTiming(
   swingTimeMs: number,
   idealTimeMs: number,
-  latencyCompensationMs = TIMING.latencyCompensationMs
+  latencyCompensationMs = 0
 ): { grade: TimingGrade; quality: number; errorMs: number } {
   const corrected = swingTimeMs - latencyCompensationMs;
   const errorMs = corrected - idealTimeMs;
@@ -203,8 +209,18 @@ export function resolveShot(params: {
   swing: SwingEvent;
   quality: number;
   rng: Rng;
+  /**
+   * Shot-making skill, independent of timing. Above 1 tightens dispersion,
+   * below 1 widens it.
+   *
+   * This has to be its own axis. Power costs accuracy, so without a skill term
+   * to offset it the hardest-hitting opponent is also the wildest, and a strong
+   * bot loses to a weaker one purely for swinging harder.
+   */
+  precision?: number;
 }): ShotResult {
   const { contact, hitter, kind, swing, quality, rng } = params;
+  const precision = Math.max(0.2, params.precision ?? 1);
   const profile = SHOT_PROFILES[kind];
 
   const power = Math.max(0, Math.min(1, swing.power));
@@ -220,10 +236,23 @@ export function resolveShot(params: {
   const lateral =
     swing.lateralBias * COURT.halfSinglesWidth * ACCURACY.aimReach;
 
+  // Three sources of spread: an irreducible base, a penalty for swinging hard,
+  // and a penalty for mistiming.
   const scatterScale = 1 - quality;
-  const lateralError =
-    gaussian(rng) * ACCURACY.maxLateralScatterM * scatterScale;
-  const depthError = gaussian(rng) * ACCURACY.maxDepthScatterM * scatterScale;
+  const spread = 1 / precision;
+  const lateralSd =
+    (ACCURACY.baseLateralScatterM +
+      power * ACCURACY.powerScatterM +
+      ACCURACY.maxLateralScatterM * scatterScale) *
+    spread;
+  const depthSd =
+    (ACCURACY.baseDepthScatterM +
+      power * ACCURACY.powerScatterM +
+      ACCURACY.maxDepthScatterM * scatterScale) *
+    spread;
+
+  const lateralError = gaussian(rng) * lateralSd;
+  const depthError = gaussian(rng) * depthSd;
 
   const target = vec(
     lateral + lateralError,

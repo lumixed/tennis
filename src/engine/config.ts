@@ -43,13 +43,31 @@ export const TIMING = {
   weakMs: 300,
 
   /**
-   * Subtracted from an incoming swing timestamp to undo pipeline latency.
+   * Subtracted from a swing timestamp by the *pose adapter* to undo pipeline
+   * latency, before the event reaches the engine. The engine itself applies no
+   * compensation — the bot and keyboard have no lag to undo, and applying this
+   * to them would bias every one of their swings early.
+   *
    * Overridden at runtime once measured against a real camera.
    */
   latencyCompensationMs: 90,
 };
 
 export const ACCURACY = {
+  /**
+   * Dispersion that survives even a perfectly timed swing.
+   *
+   * Without this a well-timed shot lands exactly on its target every time, and
+   * two competent players rally forever because neither can physically miss.
+   * Nobody hits with zero spread; this is what makes a rally end.
+   */
+  baseLateralScatterM: 0.6,
+  baseDepthScatterM: 0.55,
+  /**
+   * Extra dispersion at full power, added on top of the base. Swinging harder
+   * has to cost accuracy, or there is never a reason not to.
+   */
+  powerScatterM: 1.2,
   /** Lateral scatter in metres at the worst legal timing. */
   maxLateralScatterM: 3.4,
   /** Depth scatter in metres at the worst legal timing. */

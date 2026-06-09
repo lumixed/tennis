@@ -2,12 +2,10 @@
  * A scripted swinger for headless tests.
  *
  * Stands in for both the camera and the bot so the rally engine can be driven
- * end to end without either. Swings are issued the way a real pose pipeline
- * would report them — timestamped late by the latency budget — so the tests
- * exercise the same compensation path that live play does.
+ * end to end without either. Swings carry the engine clock directly: latency
+ * compensation belongs to the pose adapter, so nothing here needs to fake it.
  */
 
-import { TIMING } from "../config";
 import {
   applySwing,
   nextPoint,
@@ -79,7 +77,7 @@ export function playPoint(
       if (passive.has(server)) break;
       const result = applySwing(
         state,
-        swingFor(server, state.timeMs + TIMING.latencyCompensationMs, options)
+        swingFor(server, state.timeMs, options)
       );
       state = result.state;
       events.push(...result.events);
@@ -96,7 +94,7 @@ export function playPoint(
         state,
         swingFor(
           strike.striker,
-          state.timeMs + TIMING.latencyCompensationMs,
+          state.timeMs,
           options
         )
       );

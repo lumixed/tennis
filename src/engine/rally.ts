@@ -8,7 +8,7 @@
 
 import { stepBall, type BallState } from "./ball";
 import { BALL, COURT, PHYSICS_DT } from "./constants";
-import { RALLY, SHOT_PROFILES, SOLVER, TIMING } from "./config";
+import { RALLY, SHOT_PROFILES, SOLVER } from "./config";
 import { awardPoint, otherSide, type MatchState, type Side } from "./scoring";
 import { createRng, gaussian, type Rng } from "./rng";
 import { chooseShotKind, gradeTiming, resolveShot, solveLaunch } from "./shot";
@@ -77,6 +77,12 @@ export type RallyState = {
   strike: StrikeWindow | null;
   match: MatchState;
   rng: Rng;
+  /**
+   * Shot-making skill per side, 1 being the human baseline. A property of the
+   * player rather than of any individual swing, so it lives here instead of on
+   * `SwingEvent` — the camera has no business reporting it.
+   */
+  precision: Record<Side, number>;
   hitCount: number;
   /** Leftover time carried between fixed physics steps. */
   accumulatorMs: number;
@@ -103,8 +109,13 @@ export function serveBoxFor(match: MatchState): ServeBox {
   return played % 2 === 0 ? "deuce" : "ad";
 }
 
-export function createRally(match: MatchState, rng: Rng = createRng(1)): RallyState {
+export function createRally(
+  match: MatchState,
+  rng: Rng = createRng(1),
+  precision: Record<Side, number> = { near: 1, far: 1 }
+): RallyState {
   return {
+    precision,
     phase: "awaiting-serve",
     timeMs: 0,
     ball: {
@@ -129,7 +140,7 @@ export function createRally(match: MatchState, rng: Rng = createRng(1)): RallySt
 /** Reset for the next point, keeping the match score and clock. */
 export function nextPoint(state: RallyState): RallyState {
   return {
-    ...createRally(state.match, state.rng),
+    ...createRally(state.match, state.rng, state.precision),
     timeMs: state.timeMs,
   };
 }
@@ -232,8 +243,9 @@ export function serve(
   const speed = profile.speed[0] + (profile.speed[1] - profile.speed[0]) * power;
   const spinRate = profile.spin[0] + (profile.spin[1] - profile.spin[0]) * power;
 
-  // Wider placement and less margin as the serve gets bigger.
-  const scatter = 0.35 + power * 0.75;
+  // Wider placement and less margin as the serve gets bigger, tightened by the
+  // server's skill on the same axis groundstrokes use.
+  const scatter = (0.35 + power * 0.75) / Math.max(0.2, state.precision[server]);
   const lateral =
     boxSign * (1.0 + power * 1.9 + swing.lateralBias * 0.8) +
     gaussian(state.rng) * scatter;
@@ -285,10 +297,11 @@ export function applySwing(
   }
 
   const striker = state.striker;
+  // Swing timestamps arrive already corrected; sensor lag is the input
+  // adapter's business, not the engine's.
   const { grade, quality, errorMs } = gradeTiming(
     swing.t,
-    state.strike.idealTimeMs,
-    TIMING.latencyCompensationMs
+    state.strike.idealTimeMs
   );
 
   if (grade === "miss") {
@@ -311,6 +324,7 @@ export function applySwing(
     swing,
     quality,
     rng: state.rng,
+    precision: state.precision[striker],
   });
 
   const next: RallyState = {
@@ -403,7 +417,7 @@ export function step(
           events.push({ type: "let" });
           return {
             state: {
-              ...createRally(current.match, current.rng),
+              ...createRally(current.match, current.rng, current.precision),
               timeMs: current.timeMs,
               serveFaults: current.serveFaults,
             },
@@ -452,7 +466,7 @@ export function step(
 
           return {
             state: {
-              ...createRally(current.match, current.rng),
+              ...createRally(current.match, current.rng, current.precision),
               timeMs: current.timeMs,
               serveFaults: faults,
             },

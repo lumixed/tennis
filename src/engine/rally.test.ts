@@ -305,7 +305,7 @@ describe("swinging", () => {
 
     const result = applySwing(
       state,
-      swing({ t: state.timeMs + TIMING.latencyCompensationMs })
+      swing({ t: state.timeMs })
     );
 
     expect(result.events[0]).toMatchObject({ type: "hit", by: "far" });
@@ -327,7 +327,7 @@ describe("swinging", () => {
     }
     state = applySwing(
       state,
-      swing({ t: state.timeMs + TIMING.latencyCompensationMs })
+      swing({ t: state.timeMs })
     ).state;
 
     expect(state.serveFaults).toBe(0);

@@ -271,8 +271,10 @@ describe("resolveShot", () => {
     const sharp = spread(1);
     const sloppy = spread(0.2);
 
-    expect(sharp.sd).toBeLessThan(0.01);
-    expect(sloppy.sd).toBeGreaterThan(1.5);
+    // Perfect timing is tighter, not perfect: every player has irreducible
+    // dispersion, and without it two competent opponents rally forever.
+    expect(sharp.sd).toBeGreaterThan(0);
+    expect(sloppy.sd).toBeGreaterThan(sharp.sd * 1.8);
     expect(sloppy.meanSpeed).toBeLessThan(sharp.meanSpeed);
   });
 
