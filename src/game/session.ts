@@ -38,6 +38,7 @@ import {
   createMatch,
   stakeFor,
   type MatchConfig,
+  otherSide,
   type Side,
   type Stake,
 } from "../engine/scoring";
@@ -62,6 +63,14 @@ export type SessionOptions = {
    * is a rout in either direction is not a match.
    */
   adaptive?: boolean;
+  /**
+   * Rally without keeping score.
+   *
+   * A match is a poor place to learn a control scheme: the recorded player
+   * spent three minutes losing before finding the timing. Practice keeps the
+   * rallies and drops the consequences.
+   */
+  practice?: boolean;
 };
 
 export type Session = {
@@ -88,6 +97,11 @@ export type Session = {
   readonly nearStake: Stake | null;
   /** What the opponent has at stake, which is equally worth knowing. */
   readonly farStake: Stake | null;
+  /** Shots in the rally in progress, and the best so far. Practice only. */
+  readonly rallyLength: number;
+  readonly bestRally: number;
+  /** Total balls returned in practice, across all rallies. */
+  readonly totalReturns: number;
   /** Opponent level, 0..1, or null when not adapting. */
   readonly difficultyLevel: number | null;
   /** Short label for that level. */
@@ -113,10 +127,17 @@ export function createSession(options: SessionOptions): Session {
 
   // Only the far side adapts, and only against a human: a bot-versus-bot match
   // is used for balance measurement, where a moving target would be useless.
+  const practice = options.practice ?? false;
+  // Practice deliberately does not adapt: a target that keeps shifting is the
+  // opposite of what someone grooving a swing needs.
   const adapting =
-    (options.adaptive ?? true) && options.near === "human" && options.far === "bot";
+    !practice &&
+    (options.adaptive ?? true) &&
+    options.near === "human" &&
+    options.far === "bot";
   let adaptive: AdaptiveState | null = adapting ? createAdaptiveState() : null;
   let stats: MatchStats = createMatchStats();
+  let bestRally = 0;
 
   let bots: Partial<Record<Side, BotState>> = {};
   if (options.near === "bot") {
@@ -137,6 +158,22 @@ export function createSession(options: SessionOptions): Session {
 
     get stats() {
       return stats;
+    },
+
+    get rallyLength() {
+      return stats.currentRally;
+    },
+
+    get bestRally() {
+      return bestRally;
+    },
+
+    get totalReturns() {
+      // Derived from the graded swings rather than counted separately: the
+      // player's own hits arrive through `swing`, not `advance`, so counting
+      // them here would have missed every one of them.
+      const { perfect, good, weak } = stats.timing;
+      return perfect + good + weak;
     },
 
     get nearStake() {
@@ -196,6 +233,18 @@ export function createSession(options: SessionOptions): Session {
       session.state = advanced.state;
       session.events.push(...advanced.events);
       for (const e of advanced.events) stats = foldEvent(stats, e);
+
+      if (practice) {
+        for (const event of advanced.events) {
+          if (event.type !== "point") continue;
+          bestRally = Math.max(bestRally, stats.longestRally);
+          // Wipe the score so the rally is the only thing that carries over.
+          session.state = {
+            ...session.state,
+            match: createMatch(otherSide(session.state.match.server), options.matchConfig),
+          };
+        }
+      }
 
       if (adaptive) {
         for (const event of advanced.events) {

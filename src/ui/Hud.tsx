@@ -40,6 +40,8 @@ export type HudSnapshot = {
     winner: Side;
     detail: string;
   } | null;
+  /** Set when rallying without score. */
+  practice: { rally: number; best: number; returns: number } | null;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
@@ -83,6 +85,10 @@ const GOOD_WINDOW = 0.165;
 export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
   const { match } = snapshot;
   const score = describeScore(match);
+
+  if (snapshot.practice) {
+    return <PracticeHud snapshot={snapshot} practice={snapshot.practice} />;
+  }
 
   return (
     <div className="hud">
@@ -235,6 +241,67 @@ function StakeBanner({ near, far }: { near: Stake | null; far: Stake | null }) {
     <div className={mine ? "stake stake-mine" : "stake stake-theirs"}>
       {STAKE_LABEL[stake]}
       {!mine && <span className="stake-who"> against you</span>}
+    </div>
+  );
+}
+
+/**
+ * The practice view.
+ *
+ * No score at all — the scoreboard is the thing practice exists to remove. What
+ * is left is the only number that matters while grooving a swing: how long you
+ * kept the ball alive.
+ */
+function PracticeHud({
+  snapshot,
+  practice,
+}: {
+  snapshot: HudSnapshot;
+  practice: NonNullable<HudSnapshot["practice"]>;
+}) {
+  return (
+    <div className="hud">
+      <div className="hud-score practice-panel">
+        <div className="practice-row">
+          <span>Rally</span>
+          <strong>{Math.max(0, practice.rally - 1)}</strong>
+        </div>
+        <div className="practice-row">
+          <span>Best</span>
+          <strong>{Math.max(0, practice.best - 1)}</strong>
+        </div>
+        <div className="practice-row">
+          <span>Returns</span>
+          <strong>{practice.returns}</strong>
+        </div>
+        <div className="hud-caption">Practice</div>
+      </div>
+
+      <div className="hud-centre">
+        {snapshot.lastGrade && (
+          <div className={`hud-grade grade-${snapshot.lastGrade}`}>
+            {GRADE_LABEL[snapshot.lastGrade]}
+            {snapshot.lastKind && (
+              <span className="hud-kind"> {snapshot.lastKind}</span>
+            )}
+          </div>
+        )}
+        <FootworkTag value={snapshot.lastFootwork} />
+      </div>
+
+      <div className="hud-bottom">
+        <TimingMeter timeToStrike={snapshot.timeToStrike} />
+        <div className="hud-meters">
+          <Meter label="Power" value={snapshot.charge} />
+          <AimMeter label="Aim" value={snapshot.aim} />
+          {snapshot.stance !== null && (
+            <AimMeter label="Stance" value={snapshot.stance} />
+          )}
+        </div>
+        {snapshot.awaitingServe && (
+          <div className="hud-prompt">Hold a swing key to serve</div>
+        )}
+      </div>
     </div>
   );
 }

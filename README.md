@@ -10,7 +10,12 @@ Then open http://localhost:5450.
 
 ## Playing
 
-Pick an opponent (Rookie / Club / Pro) and a control scheme.
+Pick a starting opponent and a control scheme, then **Play** for a match or
+**Practice** to rally without a scoreboard.
+
+The opponent tracks your level as you go, so the starting choice is only where
+it begins. Practice deliberately does not adapt — a target that keeps shifting
+is the opposite of what you want while grooving a swing.
 
 **The avatar runs to the ball on its own.** Your job is *when* to swing and
 *how* — that is the entire game, and it is a deliberate design choice rather
@@ -102,16 +107,22 @@ src/
 The engine is pure and deterministic: same seed, same match. It never learns
 whether a swing came from a camera, a keyboard or the bot.
 
+During a match you get break/set/match point called out, games and sets
+announced, and a reason for every point you lose. At the end you get winners,
+unforced errors, aces, double faults, longest rally and how many of your swings
+were on time — plus one thing to work on.
+
 ```bash
-npm test         # 193 tests
+npm test         # 220 tests
 npm run typecheck
 npm run build
 ```
 
 ## Status
 
-M0–M10 complete: physics, rally engine, bot, renderer, pose input, game feel,
-footwork, readability, adaptive calibration and an adaptive opponent.
+M0–M11 complete: physics, rally engine, bot, renderer, pose input, game feel,
+footwork, readability, adaptive calibration, an adaptive opponent, match
+presentation and practice mode.
 
 The camera path has been played and verified on a real webcam: pose runs at
 ~30 fps on the GPU delegate with ~15 ms inference, and a recorded session went
@@ -122,4 +133,6 @@ whoever is in front of the camera without anyone touching a slider. The
 opponent tracks your level between points rather than sitting on a preset.
 Explicit calibration (**T**) is still there when you want to set it directly.
 
-Not built yet: shot-event multiplayer.
+Not built yet: shot-event multiplayer. The groundwork is there — input is
+already discrete swing events, so a peer needs a resolved ball vector per
+stroke rather than continuous state, and no rollback netcode.

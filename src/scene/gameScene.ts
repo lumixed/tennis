@@ -31,6 +31,8 @@ export type GameScene = {
   render: (session: Session, dt: number) => void;
   resize: (width: number, height: number) => void;
   dispose: () => void;
+  /** Exposed for diagnostics only; nothing in the game reads these. */
+  readonly debug: { scene: THREE.Scene; camera: THREE.PerspectiveCamera };
 };
 
 /**
@@ -127,6 +129,8 @@ export function createGameScene(container: HTMLElement): GameScene {
   };
 
   return {
+    debug: { scene, camera },
+
     render(session, dt) {
       handleEvents(session.events);
 

@@ -49,6 +49,57 @@ function concedePoints(session: Session, count: number) {
   return conceded;
 }
 
+describe("practice mode", () => {
+  const practiceSession = () =>
+    createSession({
+      near: "human",
+      far: "bot",
+      nearDifficulty: DIFFICULTIES.rookie!,
+      farDifficulty: DIFFICULTIES.rookie!,
+      practice: true,
+      seed: 17,
+    });
+
+  it("never lets the score advance", () => {
+    const session = practiceSession();
+    concedePoints(session, 10);
+
+    expect(session.state.match.points).toEqual({ near: 0, far: 0 });
+    expect(session.state.match.games).toEqual({ near: 0, far: 0 });
+    expect(session.state.match.sets).toEqual({ near: 0, far: 0 });
+    expect(session.state.match.winner).toBeNull();
+  });
+
+  it("keeps rallying rather than ending", () => {
+    const session = practiceSession();
+    // Ten points' worth of play with no winner is the whole point of practice.
+    expect(concedePoints(session, 10)).toBe(10);
+    expect(session.state.match.winner).toBeNull();
+  });
+
+  it("still counts rallies and points played", () => {
+    const session = practiceSession();
+    concedePoints(session, 6);
+    expect(session.stats.totalPoints).toBeGreaterThan(0);
+    expect(session.bestRally).toBeGreaterThanOrEqual(0);
+  });
+
+  it("does not adapt, so the feed stays consistent", () => {
+    const session = practiceSession();
+    expect(session.difficultyLevel).toBeNull();
+  });
+
+  it("alternates the serve so both sides get served to", () => {
+    const session = practiceSession();
+    const servers = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      servers.add(session.state.match.server);
+      concedePoints(session, 1);
+    }
+    expect(servers.size).toBe(2);
+  });
+});
+
 describe("adaptive opponent", () => {
   it("starts adapting against a human and reports its level", () => {
     const session = humanVsBot();

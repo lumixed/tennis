@@ -1016,3 +1016,28 @@ button {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+.practice-panel {
+  min-width: 150px;
+}
+
+.practice-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.practice-row span {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.practice-row strong {
+  font-size: 1.15rem;
+  color: var(--near);
+}

@@ -18,6 +18,7 @@ type Setup = {
   difficulty: keyof typeof DIFFICULTIES;
   nearControl: Controller;
   inputMode: InputMode;
+  practice?: boolean;
 };
 
 export function App() {
@@ -126,6 +127,14 @@ function StartScreen({ onStart }: { onStart: (setup: Setup) => void }) {
           <button
             className="secondary"
             onClick={() =>
+              onStart({ difficulty, nearControl: "human", inputMode, practice: true })
+            }
+          >
+            Practice
+          </button>
+          <button
+            className="secondary"
+            onClick={() =>
               onStart({ difficulty, nearControl: "bot", inputMode: "keyboard" })
             }
           >
@@ -218,7 +227,10 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       near: setup.nearControl,
       far: "bot",
       nearDifficulty: DIFFICULTIES[setup.difficulty]!,
-      farDifficulty: DIFFICULTIES[setup.difficulty]!,
+      farDifficulty: setup.practice
+        ? DIFFICULTIES.rookie!
+        : DIFFICULTIES[setup.difficulty]!,
+      practice: setup.practice ?? false,
     });
     sessionRef.current = session;
 
@@ -395,6 +407,13 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           stance: poseInput?.debug?.stance ?? null,
           poseVisibility: poseInput?.debug?.visibility ?? null,
           difficultyLabel: session.difficultyLabel,
+          practice: setup.practice
+            ? {
+                rally: session.rallyLength,
+                best: session.bestRally,
+                returns: session.totalReturns,
+              }
+            : null,
           nearStake: session.nearStake,
           farStake: session.farStake,
           serveNumber:
@@ -433,6 +452,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
         injectSwing(event: SwingEvent) {
           injected.push(event);
         },
+        scene: scene.debug,
         pump(seconds: number, stepMs = 16) {
           // Runs the same frameStep the rAF loop does, so input handling is
           // exercised too rather than only physics and rendering.
@@ -515,7 +535,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           </p>
         </div>
       )}
-      {snapshot?.match.winner && finalStats && (
+      {!setup.practice && snapshot?.match.winner && finalStats && (
         <MatchSummary
           match={snapshot.match}
           stats={finalStats}
