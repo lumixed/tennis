@@ -973,3 +973,46 @@ button {
   gap: 0.6rem;
   justify-content: center;
 }
+
+.milestone {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.45rem 1.1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(8, 14, 20, 0.85);
+  backdrop-filter: blur(8px);
+  animation: pop 0.32s ease;
+}
+
+.milestone-kind {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.milestone-set .milestone-kind {
+  font-size: 1.6rem;
+}
+
+.milestone-mine .milestone-kind {
+  color: var(--near);
+}
+
+.milestone-theirs .milestone-kind {
+  color: var(--far);
+}
+
+.milestone-who {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.milestone-detail {
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}

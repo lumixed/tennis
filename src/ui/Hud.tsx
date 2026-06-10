@@ -34,6 +34,12 @@ export type HudSnapshot = {
   farStake: Stake | null;
   /** 1 or 2 while a serve is due, otherwise null. */
   serveNumber: 1 | 2 | null;
+  /** A game or set just completed, while it is still worth announcing. */
+  milestone: {
+    kind: "game" | "set";
+    winner: Side;
+    detail: string;
+  } | null;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
@@ -120,6 +126,7 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
         )}
         <FootworkTag value={snapshot.lastFootwork} />
         <PointOutcome outcome={snapshot.lastPoint} />
+        <Milestone milestone={snapshot.milestone} />
       </div>
 
       <div className="hud-bottom">
@@ -228,6 +235,29 @@ function StakeBanner({ near, far }: { near: Stake | null; far: Stake | null }) {
     <div className={mine ? "stake stake-mine" : "stake stake-theirs"}>
       {STAKE_LABEL[stake]}
       {!mine && <span className="stake-who"> against you</span>}
+    </div>
+  );
+}
+
+function Milestone({
+  milestone,
+}: {
+  milestone: HudSnapshot["milestone"];
+}) {
+  if (!milestone) return null;
+  const mine = milestone.winner === "near";
+
+  return (
+    <div
+      className={`milestone milestone-${milestone.kind} ${
+        mine ? "milestone-mine" : "milestone-theirs"
+      }`}
+    >
+      <span className="milestone-kind">
+        {milestone.kind === "set" ? "Set" : "Game"}
+      </span>
+      <span className="milestone-who">{mine ? "you" : "bot"}</span>
+      <span className="milestone-detail">{milestone.detail}</span>
     </div>
   );
 }

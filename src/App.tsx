@@ -243,6 +243,8 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     let lastFootwork: number | null = null;
     let lastPoint: HudSnapshot["lastPoint"] = null;
     let pointShownAt = 0;
+    let milestone: HudSnapshot["milestone"] = null;
+    let milestoneShownAt = 0;
     /** Dev-only swings injected through the same door pose swings use. */
     const injected: SwingEvent[] = [];
     let gradeShownAt = 0;
@@ -281,6 +283,10 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           }
         }
       }
+
+      // Snapshot the score before the step, so a completed game or set can be
+      // spotted by comparing across it.
+      const matchBefore = session.state.match;
 
       // Hit-stop and slow motion scale the simulation, never the wall clock,
       // so the engine stays deterministic and simply gets a smaller delta.
@@ -332,6 +338,30 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
             if (session.state.match.winner) setFinalStats(session.stats);
             lastPoint = { winner: event.winner, reason: event.reason };
             pointShownAt = now;
+
+            // A game or set completing is the shape of a match; without it the
+            // whole thing passes as an undifferentiated run of points.
+            {
+              const after = session.state.match;
+              const side = event.winner;
+              if (after.sets[side] > matchBefore.sets[side]) {
+                const set = after.history[after.history.length - 1];
+                milestone = {
+                  kind: "set",
+                  winner: side,
+                  detail: set ? `${set.near}–${set.far}` : "",
+                };
+                milestoneShownAt = now;
+                time.slowMotion(900, 0.4);
+              } else if (after.games[side] > matchBefore.games[side]) {
+                milestone = {
+                  kind: "game",
+                  winner: side,
+                  detail: `${after.games.near}–${after.games.far}`,
+                };
+                milestoneShownAt = now;
+              }
+            }
             // Linger on the shot that ended a real rally, not on a double fault.
             if (session.state.hitCount >= 4) time.slowMotion(650);
             break;
@@ -372,6 +402,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
               ? ((state.serveFaults + 1) as 1 | 2)
               : null,
           lastPoint: now - pointShownAt < 2400 ? lastPoint : null,
+          milestone: now - milestoneShownAt < 2600 ? milestone : null,
           rallyShots: state.hitCount,
           renderMs: frameCostMs,
           phase: state.phase,
