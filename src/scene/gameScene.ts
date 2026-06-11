@@ -127,7 +127,7 @@ export function createGameScene(container: HTMLElement): GameScene {
       handleEvents(session.events);
 
       const state = session.state;
-      ball.update(state.ball.pos, dt);
+      ball.update(state.ball.pos, dt, camera);
 
       // Each avatar tracks the ball when it is theirs to play, and recentres
       // otherwise — the auto-positioning the whole design rests on.
@@ -169,13 +169,16 @@ export function createGameScene(container: HTMLElement): GameScene {
     dispose() {
       renderer.dispose();
       canvas.remove();
+      ball.dispose();
+
+      // Matches anything carrying GPU resources, not just Mesh: the ball's glow
+      // is a Sprite and its trail is a Line, and both were being leaked.
       scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          object.geometry.dispose();
-          const material = object.material;
-          if (Array.isArray(material)) material.forEach((m) => m.dispose());
-          else material.dispose();
-        }
+        const holder = object as Partial<THREE.Mesh>;
+        holder.geometry?.dispose();
+        const material = holder.material;
+        if (Array.isArray(material)) material.forEach((m) => m.dispose());
+        else material?.dispose();
       });
     },
   };
