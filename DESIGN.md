@@ -79,9 +79,34 @@ The **engine is pure and deterministic**. It receives abstract `SwingEvent`s and
 - Bot and player drive the *same* input interface, so the bot is not a special case.
 - Swapping pose models later touches one directory.
 
-### Multiplayer (later)
+### Multiplayer
 
-Because input is discrete `SwingEvent`s rather than continuous pose, networked play syncs **shot events** — a resolved ball state vector plus spin plus timestamp — a few bytes per stroke. No continuous state streaming, no rollback netcode. The auto-positioning decision is what buys this.
+Built as an **authoritative host** rather than the deterministic lockstep this
+section originally imagined.
+
+The engine *is* deterministic, but `advance` takes a variable delta: two peers
+running at different frame rates would apply swings at different points in the
+physics accumulator and drift apart with nothing to detect it. Lockstep would
+have meant reworking the session onto a fixed logical tick. An authoritative
+host cannot desync at all, and it costs only a round trip on the guest's own
+swing — which the sport's 700-900 ms ball flight absorbs easily. That latency
+budget is the same reason tennis was chosen over table tennis, being spent a
+second time.
+
+The guest carries the ball forward with the real physics between the host's
+30 Hz snapshots, so motion stays smooth and is corrected the instant the next
+snapshot lands.
+
+Both players see themselves at the near end, so the guest's world arrives
+mirrored: positions and velocities rotate 180 degrees about the vertical axis,
+spin transforms with them, and every side label swaps. `mirrorSnapshot` is its
+own inverse — the property that stops the two players slowly drifting into
+different worlds, and it is asserted as such.
+
+Signalling is copy-paste. There is no server to deploy or keep running, and the
+game needs neither matchmaking nor discovery: two people who already know each
+other want one connection. The cost is a long code and no TURN fallback, so two
+players both behind symmetric NAT will not connect.
 
 ## Physics
 
