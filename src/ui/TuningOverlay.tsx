@@ -7,7 +7,12 @@
  * actual thresholds, and a slider for each one, all adjustable mid-rally.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  analyseCalibration,
+  applyCalibration,
+  type CalibrationResult,
+} from "../vision/calibration";
 import { LANDMARK } from "../vision/landmarker";
 import {
   resetSwingConfig,
@@ -74,14 +79,49 @@ const BONES: Array<[number, number]> = [
 
 export function TuningOverlay({
   pose,
+  renderMs = 0,
   onClose,
 }: {
   pose: PoseInput;
+  /** Smoothed cost of one sim+render frame, ms. */
+  renderMs?: number;
   onClose: () => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const traceRef = useRef<HTMLCanvasElement>(null);
   const [, forceRender] = useState(0);
+
+  // Calibration. Phase lives in a ref as well as state because the draw loop
+  // closes over it and would otherwise read a stale value.
+  const [calibration, setCalibration] = useState<CalibrationState>({
+    phase: "idle",
+  });
+  const phaseRef = useRef<CalibrationState["phase"]>("idle");
+  const samplesRef = useRef<number[]>([]);
+  const endsAtRef = useRef(0);
+  const [secondsLeft, setSecondsLeft] = useState(0);
+
+  const finishCalibration = useCallback(() => {
+    phaseRef.current = "idle";
+    const outcome = analyseCalibration(samplesRef.current, CALIBRATION_SWINGS);
+    samplesRef.current = [];
+
+    if ("problem" in outcome) {
+      setCalibration({ phase: "failed", problem: outcome.problem });
+      return;
+    }
+    applyCalibration(swingConfig, outcome.suggestion);
+    setCalibration({ phase: "done", result: outcome });
+  }, []);
+
+  const startCalibration = useCallback(() => {
+    pose.reset();
+    samplesRef.current = [];
+    endsAtRef.current = performance.now() + CALIBRATION_MS;
+    phaseRef.current = "recording";
+    setSecondsLeft(Math.ceil(CALIBRATION_MS / 1000));
+    setCalibration({ phase: "recording" });
+  }, [pose]);
 
   useEffect(() => {
     let frame = 0;
@@ -92,15 +132,26 @@ export function TuningOverlay({
       drawSkeleton(canvasRef.current, pose);
       drawTrace(traceRef.current, pose);
 
+      if (phaseRef.current === "recording") {
+        // Record the raw speed signal, not detected swings: if the thresholds
+        // are wrong then nothing is being detected, which is the whole reason
+        // calibration is running.
+        samplesRef.current.push(pose.debug?.speed ?? 0);
+        const left = endsAtRef.current - performance.now();
+        setSecondsLeft(Math.max(0, Math.ceil(left / 1000)));
+        if (left <= 0) finishCalibration();
+      }
+
       // Refresh the numeric readouts a few times a second, not every frame.
       if (++tick % 6 === 0) forceRender((n) => n + 1);
     };
 
     frame = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(frame);
-  }, [pose]);
+  }, [pose, finishCalibration]);
 
   const debug = pose.debug;
+  const stats = pose.stats;
 
   return (
     <div className="tuning">
@@ -113,17 +164,57 @@ export function TuningOverlay({
       <canvas ref={traceRef} className="tuning-trace" width={240} height={72} />
 
       <div className="tuning-readouts">
-        <Readout label="fps" value={pose.fps.toFixed(0)} />
         <Readout label="speed" value={(debug?.speed ?? 0).toFixed(2)} />
         <Readout
           label="vis"
           value={(debug?.visibility ?? 0).toFixed(2)}
           warn={(debug?.visibility ?? 0) < swingConfig.minVisibility}
         />
+        <Readout label="armed" value={debug?.armed ? "yes" : "no"} />
         <Readout label="lean" value={(debug?.lean ?? 0).toFixed(2)} />
         <Readout label="stance" value={(debug?.stance ?? 0).toFixed(2)} />
-        <Readout label="armed" value={debug?.armed ? "yes" : "no"} />
+        <Readout label="hand" value={debug?.hand ?? "-"} />
       </div>
+
+      {/*
+        Performance readouts. Inference runs on the main thread, so a slow
+        delegate or a long frame here is felt directly as stutter — this is the
+        first place to look when the game hitches.
+      */}
+      <div className="tuning-readouts tuning-perf">
+        <Readout
+          label="pose fps"
+          value={stats.poseFps.toFixed(0)}
+          warn={stats.poseFps > 0 && stats.poseFps < 18}
+        />
+        <Readout
+          label="infer ms"
+          value={stats.inferenceMs.toFixed(1)}
+          warn={stats.inferenceMs > 22}
+        />
+        <Readout
+          label="worst"
+          value={stats.worstInferenceMs.toFixed(0)}
+          warn={stats.worstInferenceMs > 60}
+        />
+        <Readout
+          label="delegate"
+          value={stats.delegate}
+          warn={stats.delegate === "CPU"}
+        />
+        <Readout label="dropped" value={String(stats.dropped)} />
+        <Readout
+          label="draw ms"
+          value={renderMs.toFixed(1)}
+          warn={renderMs > 12}
+        />
+      </div>
+
+      <CalibrationPanel
+        state={calibration}
+        secondsLeft={secondsLeft}
+        onStart={startCalibration}
+      />
 
       <div className="tuning-sliders">
         {SLIDERS.map((spec) => (
@@ -135,11 +226,74 @@ export function TuningOverlay({
         className="tuning-reset"
         onClick={() => {
           resetSwingConfig();
+          setCalibration({ phase: "idle" });
           forceRender((n) => n + 1);
         }}
       >
         Reset to defaults
       </button>
+    </div>
+  );
+}
+
+type CalibrationState =
+  | { phase: "idle" }
+  | { phase: "recording" }
+  | { phase: "done"; result: CalibrationResult }
+  | { phase: "failed"; problem: string };
+
+const CALIBRATION_MS = 9000;
+const CALIBRATION_SWINGS = 5;
+
+const PROBLEM_TEXT: Record<string, string> = {
+  "no-signal": "Saw no movement. Check you are in frame, then try again.",
+  "too-few-swings": "Only caught a couple of swings. Try five clear ones.",
+  inconsistent:
+    "Those swings varied too much to read. Swing as you would in a rally.",
+};
+
+/**
+ * Guided calibration.
+ *
+ * Thresholds derived from the player's own swings beat any constant shipped in
+ * the source, which is necessarily tuned to one body at one distance.
+ */
+function CalibrationPanel({
+  state,
+  secondsLeft,
+  onStart,
+}: {
+  state: CalibrationState;
+  secondsLeft: number;
+  onStart: () => void;
+}) {
+  if (state.phase === "recording") {
+    return (
+      <div className="calib calib-live">
+        <strong>Swing {CALIBRATION_SWINGS} times</strong>
+        <span>{secondsLeft}s</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="calib">
+      <button className="calib-start" onClick={onStart}>
+        {state.phase === "idle" ? "Calibrate to me" : "Calibrate again"}
+      </button>
+
+      {state.phase === "done" && (
+        <p className="calib-result">
+          Set from your swings — typical peak{" "}
+          <strong>{state.result.medianPeak.toFixed(1)}</strong>, arming at{" "}
+          <strong>{state.result.suggestion.enterSpeed.toFixed(1)}</strong>.
+        </p>
+      )}
+      {state.phase === "failed" && (
+        <p className="calib-result calib-problem">
+          {PROBLEM_TEXT[state.problem] ?? "Calibration failed. Try again."}
+        </p>
+      )}
     </div>
   );
 }

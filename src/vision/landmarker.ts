@@ -30,15 +30,28 @@ export const LANDMARK = {
   rightHip: 24,
 } as const;
 
-let cached: Promise<PoseLandmarker> | null = null;
+export type LoadedLandmarker = {
+  landmarker: PoseLandmarker;
+  /**
+   * Which delegate actually loaded.
+   *
+   * Reported rather than swallowed: CPU inference is several times slower than
+   * GPU, easily enough to turn a smooth game into a stuttering one, and a silent
+   * fallback makes that look like a mysterious performance problem.
+   */
+  delegate: "GPU" | "CPU";
+};
 
-async function build(delegate: "GPU" | "CPU"): Promise<PoseLandmarker> {
+let cached: Promise<LoadedLandmarker> | null = null;
+
+async function build(delegate: "GPU" | "CPU"): Promise<LoadedLandmarker> {
   const vision = await FilesetResolver.forVisionTasks(MODEL.wasmBase);
-  return PoseLandmarker.createFromOptions(vision, {
+  const landmarker = await PoseLandmarker.createFromOptions(vision, {
     baseOptions: { modelAssetPath: MODEL.assetPath, delegate },
     runningMode: "VIDEO",
     numPoses: 1,
   });
+  return { landmarker, delegate };
 }
 
 /**
@@ -47,7 +60,7 @@ async function build(delegate: "GPU" | "CPU"): Promise<PoseLandmarker> {
  * The fallback matters: a machine without a usable WebGL delegate should play
  * slowly rather than not at all.
  */
-export function loadLandmarker(): Promise<PoseLandmarker> {
+export function loadLandmarker(): Promise<LoadedLandmarker> {
   if (!cached) {
     cached = build("GPU").catch((error) => {
       console.warn("[vision] GPU delegate failed, retrying on CPU:", error);

@@ -18,6 +18,8 @@ export type HudSnapshot = {
   lastGrade: TimingGrade | null;
   lastKind: string | null;
   rallyShots: number;
+  /** Smoothed cost of one sim+render frame, ms. */
+  renderMs: number;
   phase: string;
   awaitingServe: boolean;
 };

@@ -10,9 +10,6 @@ import type { SwingArc, SwingEvent } from "../engine/shotTypes";
 import type { SwingConfig } from "./swingConfig";
 import type { DetectedSwing } from "./types";
 
-/** Peak wrist speeds, in torso-lengths/s, mapping to zero and full power. */
-export const POWER_RANGE: [number, number] = [3.0, 9.5];
-
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
@@ -42,12 +39,9 @@ export function toSwingEvent(
   swing: DetectedSwing,
   config: SwingConfig
 ): SwingEvent {
-  const [minSpeed, maxSpeed] = POWER_RANGE;
-  const power = clamp(
-    (swing.peakSpeed - minSpeed) / (maxSpeed - minSpeed),
-    0,
-    1
-  );
+  // Calibration can move these, so read them from the config every time.
+  const span = Math.max(0.1, config.powerSpeedMax - config.powerSpeedMin);
+  const power = clamp((swing.peakSpeed - config.powerSpeedMin) / span, 0, 1);
 
   return {
     // Capture time of the peak, less the pipeline delay it took to get here.

@@ -55,10 +55,15 @@ engine through exactly the same `SwingEvent` interface the camera does.
 
 ## Tuning the camera
 
-Swing thresholds cannot be derived; they depend on your body, your lighting and
-where you stand. Press **T** and you get the skeleton, a live wrist-speed trace
-drawn against the actual thresholds, and a slider for each one — all adjustable
-mid-rally.
+Press **T**, then hit **Calibrate to me** and swing five times. It measures your
+actual swing speeds and sets the thresholds from them — a gentle swinger and a
+violent one both end up with a game that fits. Do this first; it beats any
+constant shipped in the source, which is necessarily tuned to one body at one
+distance.
+
+The rest of the panel is there when calibration is not enough: the skeleton, a
+live wrist-speed trace drawn against the actual thresholds, a slider for each
+one, and performance readouts — all adjustable mid-rally.
 
 If a swing is not registering, watch the trace:
 
@@ -70,6 +75,16 @@ If a swing is not registering, watch the trace:
 - `stance` sits near 0 even when you step → you are not moving far enough for
   the frame, or the neutral centre has drifted onto you; stand still a moment
   and try again
+
+If the game stutters, look at the performance row:
+
+- **delegate** reads `CPU` → the GPU delegate failed to load; inference is
+  several times slower and this alone will cause stutter
+- **infer ms** above ~22 → pose inference is eating the frame. It runs on the
+  main thread, so this is felt directly
+- **worst** much higher than **infer ms** → occasional long frames, which read
+  as hitches rather than general slowness
+- **draw ms** above ~12 → the scene itself is the bottleneck, not the camera
 
 ## Layout
 
@@ -88,7 +103,7 @@ The engine is pure and deterministic: same seed, same match. It never learns
 whether a swing came from a camera, a keyboard or the bot.
 
 ```bash
-npm test         # 142 tests
+npm test         # 158 tests
 npm run typecheck
 npm run build
 ```

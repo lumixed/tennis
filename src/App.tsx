@@ -200,9 +200,12 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
     let hudAccumulator = 0;
     let last = performance.now();
     let frame = 0;
+    // Smoothed cost of one sim+render frame, surfaced in the tuning panel.
+    let frameCostMs = 0;
 
     /** One frame of work, shared by the rAF loop and the dev pump. */
     const frameStep = (now: number, dt: number) => {
+      const frameStartedAt = performance.now();
       input.update(now, dt);
 
       if (setup.nearControl === "human") {
@@ -216,7 +219,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           // compensated. Rebase them onto the engine clock, which runs slower
           // whenever a frame is dropped and dt gets clamped.
           const epoch = now - session.state.timeMs;
-          for (const swing of poseInput.update(now)) {
+          for (const swing of poseInput.update()) {
             session.swing({ ...swing, t: swing.t - epoch });
           }
         }
@@ -273,6 +276,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
 
       scene.render(session, dt);
 
+      const cost = performance.now() - frameStartedAt;
+      frameCostMs = frameCostMs === 0 ? cost : frameCostMs * 0.9 + cost * 0.1;
+
       // The HUD does not need 60 Hz; refreshing it less often keeps React out
       // of the frame budget.
       hudAccumulator += dt;
@@ -292,6 +298,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           lastGrade: now - gradeShownAt < 1100 ? lastGrade : null,
           lastKind: now - gradeShownAt < 1100 ? lastKind : null,
           rallyShots: state.hitCount,
+          renderMs: frameCostMs,
           phase: state.phase,
           awaitingServe:
             state.phase === "awaiting-serve" &&
@@ -369,7 +376,11 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       </button>
 
       {pose && showTuning && (
-        <TuningOverlay pose={pose} onClose={() => setShowTuning(false)} />
+        <TuningOverlay
+          pose={pose}
+          renderMs={snapshot?.renderMs ?? 0}
+          onClose={() => setShowTuning(false)}
+        />
       )}
 
       {pose && !showTuning && pose.status === "running" && (

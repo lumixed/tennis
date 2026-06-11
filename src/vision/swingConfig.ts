@@ -53,6 +53,15 @@ export type SwingConfig = {
   latencyCompensationMs: number;
   /** Frames of speed history kept for the overlay trace. */
   traceLength: number;
+  /**
+   * Peak wrist speeds, in torso-lengths/s, mapping to zero and full shot power.
+   *
+   * Lives in the config rather than as a constant so calibration can set it from
+   * the player's own swings — a gentle swinger and a violent one should both be
+   * able to reach full power.
+   */
+  powerSpeedMin: number;
+  powerSpeedMax: number;
 };
 
 export const DEFAULT_SWING_CONFIG: SwingConfig = {
@@ -69,6 +78,8 @@ export const DEFAULT_SWING_CONFIG: SwingConfig = {
   leanGain: 2.6,
   latencyCompensationMs: 90,
   traceLength: 90,
+  powerSpeedMin: 3.0,
+  powerSpeedMax: 9.5,
 };
 
 /** Live config the tuning overlay mutates. */

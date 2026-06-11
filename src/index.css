@@ -657,3 +657,58 @@ button {
   line-height: 1;
   backdrop-filter: blur(8px);
 }
+
+.tuning-perf {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.calib {
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.calib-start {
+  width: 100%;
+  padding: 0.45rem;
+  border-radius: 7px;
+  border: 1px solid var(--near);
+  background: rgba(200, 255, 61, 0.12);
+  color: var(--near);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.calib-start:hover {
+  background: rgba(200, 255, 61, 0.22);
+}
+
+.calib-live {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.7rem;
+  margin-top: 0.7rem;
+  border-radius: 7px;
+  border: 1px solid var(--near);
+  background: rgba(200, 255, 61, 0.16);
+  font-size: 0.8rem;
+  animation: breathe 1.2s ease-in-out infinite;
+}
+
+.calib-live span {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.calib-result {
+  margin: 0.45rem 0 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.calib-problem {
+  color: #ffc93d;
+}

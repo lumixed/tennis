@@ -51,7 +51,10 @@ export function createGameScene(container: HTMLElement): GameScene {
     antialias: true,
     powerPreference: "high-performance",
   });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Capped at 1.5 rather than 2: on a retina display that is the difference
+  // between a 2560x1440 and a 1920x1080 buffer, roughly half the fragment work,
+  // and at this flat-shaded art style the difference is not visible.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -74,7 +77,8 @@ export function createGameScene(container: HTMLElement): GameScene {
   const key = new THREE.DirectionalLight(0xffffff, 2.1);
   key.position.set(9, 22, -4);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  // 1024 is plenty for soft blob shadows and a quarter of the shadow-pass cost.
+  key.shadow.mapSize.set(1024, 1024);
   key.shadow.camera.left = -20;
   key.shadow.camera.right = 20;
   key.shadow.camera.top = 24;
