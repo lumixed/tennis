@@ -206,3 +206,34 @@ export function isMatchPoint(state: MatchState, side: Side): boolean {
   const after = awardPoint(state, side);
   return after.winner === side;
 }
+
+/** True when the given side is one point from taking the current game. */
+export function isGamePoint(state: MatchState, side: Side): boolean {
+  if (state.winner) return false;
+  const after = awardPoint(state, side);
+  return after.games[side] > state.games[side] || after.sets[side] > state.sets[side];
+}
+
+/** True when the given side is one point from taking the current set. */
+export function isSetPoint(state: MatchState, side: Side): boolean {
+  if (state.winner) return false;
+  const after = awardPoint(state, side);
+  return after.sets[side] > state.sets[side];
+}
+
+/**
+ * The most significant thing at stake on this point, from `side`'s view.
+ *
+ * Ordered by weight so the caller can show one label rather than three: match
+ * point subsumes set point, which subsumes game point. A game point against the
+ * server is a break point, which is the one every tennis crowd reacts to.
+ */
+export type Stake = "match-point" | "set-point" | "break-point" | "game-point";
+
+export function stakeFor(state: MatchState, side: Side): Stake | null {
+  if (state.winner) return null;
+  if (isMatchPoint(state, side)) return "match-point";
+  if (isSetPoint(state, side)) return "set-point";
+  if (!isGamePoint(state, side)) return null;
+  return state.server === side ? "game-point" : "break-point";
+}

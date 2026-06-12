@@ -805,3 +805,171 @@ button {
   color: var(--muted);
   line-height: 1.5;
 }
+
+/* ---------------------------------------------------------------- stake --- */
+
+.stake {
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  animation: pop 0.3s ease;
+}
+
+.stake-mine {
+  background: rgba(200, 255, 61, 0.16);
+  border: 1px solid rgba(200, 255, 61, 0.5);
+  color: var(--near);
+}
+
+.stake-theirs {
+  background: rgba(255, 107, 74, 0.14);
+  border: 1px solid rgba(255, 107, 74, 0.45);
+  color: var(--far);
+}
+
+.stake-who {
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.second-serve {
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffc93d;
+}
+
+/* -------------------------------------------------------------- summary --- */
+
+.summary {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 11, 16, 0.88);
+  backdrop-filter: blur(10px);
+  pointer-events: auto;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.summary-card {
+  width: min(440px, 92vw);
+  padding: 1.5rem;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(12, 20, 28, 0.9);
+  text-align: center;
+}
+
+.summary-card h2 {
+  margin: 0;
+  font-size: 2.4rem;
+  letter-spacing: -0.03em;
+}
+
+.summary-win {
+  color: var(--near);
+}
+
+.summary-loss {
+  color: var(--far);
+}
+
+.summary-sets {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 0.5rem 0 1.25rem;
+}
+
+.summary-set {
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.summary-nosets {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+}
+
+.summary-table th,
+.summary-table td {
+  padding: 0.32rem 0.5rem;
+  text-align: right;
+}
+
+.summary-table thead th {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-table th[scope="row"] {
+  text-align: left;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.summary-lead {
+  color: var(--near);
+  font-weight: 700;
+}
+
+.summary-extras {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.4rem;
+  margin: 1rem 0;
+}
+
+.summary-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  text-align: left;
+}
+
+.summary-extra span {
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.summary-advice {
+  margin: 0 0 1.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  border-left: 2px solid var(--near);
+  background: rgba(200, 255, 61, 0.07);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  text-align: left;
+  color: var(--fg);
+}
+
+.summary-actions {
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+}

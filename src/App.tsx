@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DIFFICULTIES } from "./engine/bot";
+import type { MatchStats } from "./engine/matchStats";
 import type { SwingEvent, TimingGrade } from "./engine/shotTypes";
 import { createSound } from "./audio/sound";
 import { createSession, type Controller, type Session } from "./game/session";
@@ -7,6 +8,7 @@ import { createTimeControl } from "./game/timeControl";
 import { createKeyboardInput } from "./input/keyboard";
 import { createGameScene } from "./scene/gameScene";
 import { Hud, type HudSnapshot } from "./ui/Hud";
+import { MatchSummary } from "./ui/MatchSummary";
 import { TuningOverlay } from "./ui/TuningOverlay";
 import { createPoseInput, type PoseInput } from "./vision/poseInput";
 
@@ -152,6 +154,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
   const [poseError, setPoseError] = useState<string | null>(null);
   const [showTuning, setShowTuning] = useState(false);
   const [muted, setMuted] = useState(false);
+  /** Bumped to rebuild the session for a rematch. */
+  const [round, setRound] = useState(0);
+  const [finalStats, setFinalStats] = useState<MatchStats | null>(null);
   const soundRef = useRef<ReturnType<typeof createSound> | null>(null);
 
   const toggleMute = useCallback(() => {
@@ -322,6 +327,9 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
             break;
           case "point":
             sound.point(event.winner === "near");
+            // Freeze the numbers the moment the match is decided; the session
+            // keeps running and would otherwise keep folding events in.
+            if (session.state.match.winner) setFinalStats(session.stats);
             lastPoint = { winner: event.winner, reason: event.reason };
             pointShownAt = now;
             // Linger on the shot that ended a real rally, not on a double fault.
@@ -357,6 +365,12 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           stance: poseInput?.debug?.stance ?? null,
           poseVisibility: poseInput?.debug?.visibility ?? null,
           difficultyLabel: session.difficultyLabel,
+          nearStake: session.nearStake,
+          farStake: session.farStake,
+          serveNumber:
+            state.phase === "awaiting-serve"
+              ? ((state.serveFaults + 1) as 1 | 2)
+              : null,
           lastPoint: now - pointShownAt < 2400 ? lastPoint : null,
           rallyShots: state.hitCount,
           renderMs: frameCostMs,
@@ -427,7 +441,7 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
       scene.dispose();
       sessionRef.current = null;
     };
-  }, [setup, toggleMute]);
+  }, [setup, toggleMute, round]);
 
   return (
     <div className="court">
@@ -470,13 +484,17 @@ function Court({ setup, onExit }: { setup: Setup; onExit: () => void }) {
           </p>
         </div>
       )}
-      {snapshot?.match.winner && (
-        <div className="result">
-          <h2>{snapshot.match.winner === "near" ? "You win" : "Bot wins"}</h2>
-          <button className="primary" onClick={handleExit}>
-            Back to menu
-          </button>
-        </div>
+      {snapshot?.match.winner && finalStats && (
+        <MatchSummary
+          match={snapshot.match}
+          stats={finalStats}
+          onPlayAgain={() => {
+            setFinalStats(null);
+            setSnapshot(null);
+            setRound((n) => n + 1);
+          }}
+          onExit={handleExit}
+        />
       )}
     </div>
   );

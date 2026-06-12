@@ -7,7 +7,7 @@
  */
 
 import type { TimingGrade } from "../engine/shotTypes";
-import { describeScore, type MatchState, type Side } from "../engine/scoring";
+import { describeScore, type MatchState, type Side, type Stake } from "../engine/scoring";
 import type { PointReason } from "../engine/rally";
 
 export type HudSnapshot = {
@@ -28,6 +28,12 @@ export type HudSnapshot = {
   poseVisibility: number | null;
   /** Short label for the opponent's current level, when it is adapting. */
   difficultyLabel: string | null;
+  /** What the near player has at stake on this point. */
+  nearStake: Stake | null;
+  /** What the opponent has at stake. */
+  farStake: Stake | null;
+  /** 1 or 2 while a serve is due, otherwise null. */
+  serveNumber: 1 | 2 | null;
   rallyShots: number;
   /** Smoothed cost of one sim+render frame, ms. */
   renderMs: number;
@@ -48,6 +54,13 @@ const POINT_REASON: Record<PointReason, { won: string; lost: string }> = {
   net: { won: "They found the net", lost: "Into the net" },
   "double-bounce": { won: "They could not reach it", lost: "You did not reach it" },
   "double-fault": { won: "Double fault", lost: "Double fault" },
+};
+
+const STAKE_LABEL: Record<Stake, string> = {
+  "match-point": "Match point",
+  "set-point": "Set point",
+  "break-point": "Break point",
+  "game-point": "Game point",
 };
 
 const GRADE_LABEL: Record<TimingGrade, string> = {
@@ -93,6 +106,7 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
       </div>
 
       <div className="hud-centre">
+        <StakeBanner near={snapshot.nearStake} far={snapshot.farStake} />
         {snapshot.rallyShots > 2 && (
           <div className="hud-rally">{snapshot.rallyShots} shot rally</div>
         )}
@@ -117,6 +131,9 @@ export function Hud({ snapshot }: { snapshot: HudSnapshot }) {
             <AimMeter label="Stance" value={snapshot.stance} />
           )}
         </div>
+        {snapshot.serveNumber === 2 && (
+          <div className="second-serve">Second serve</div>
+        )}
         {snapshot.awaitingServe && (
           <div className="hud-prompt">Hold a swing key to serve</div>
         )}
@@ -192,6 +209,25 @@ function Meter({ label, value }: { label: string; value: number }) {
       <div className="meter-track">
         <div className="meter-fill" style={{ width: `${value * 100}%` }} />
       </div>
+    </div>
+  );
+}
+
+/**
+ * What this point is worth.
+ *
+ * Only one side can be a point from the game, so there is never a contest for
+ * this space — and a match where nothing is ever announced has no shape at all.
+ */
+function StakeBanner({ near, far }: { near: Stake | null; far: Stake | null }) {
+  const stake = near ?? far;
+  if (!stake) return null;
+  const mine = near !== null;
+
+  return (
+    <div className={mine ? "stake stake-mine" : "stake stake-theirs"}>
+      {STAKE_LABEL[stake]}
+      {!mine && <span className="stake-who"> against you</span>}
     </div>
   );
 }

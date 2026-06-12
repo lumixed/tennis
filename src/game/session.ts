@@ -29,7 +29,18 @@ import {
   type RallyEvent,
   type RallyState,
 } from "../engine/rally";
-import { createMatch, type MatchConfig, type Side } from "../engine/scoring";
+import {
+  createMatchStats,
+  foldEvent,
+  type MatchStats,
+} from "../engine/matchStats";
+import {
+  createMatch,
+  stakeFor,
+  type MatchConfig,
+  type Side,
+  type Stake,
+} from "../engine/scoring";
 import type { SwingEvent } from "../engine/shotTypes";
 
 export type Controller = "human" | "bot";
@@ -71,6 +82,12 @@ export type Session = {
   swing: (event: SwingEvent) => void;
   /** True when the given side is waiting on a human to act. */
   awaitingHuman: (side: Side) => boolean;
+  /** Everything that has happened, for the scoreboard and the summary. */
+  readonly stats: MatchStats;
+  /** What the near player has at stake on this point, if anything. */
+  readonly nearStake: Stake | null;
+  /** What the opponent has at stake, which is equally worth knowing. */
+  readonly farStake: Stake | null;
   /** Opponent level, 0..1, or null when not adapting. */
   readonly difficultyLevel: number | null;
   /** Short label for that level. */
@@ -99,6 +116,7 @@ export function createSession(options: SessionOptions): Session {
   const adapting =
     (options.adaptive ?? true) && options.near === "human" && options.far === "bot";
   let adaptive: AdaptiveState | null = adapting ? createAdaptiveState() : null;
+  let stats: MatchStats = createMatchStats();
 
   let bots: Partial<Record<Side, BotState>> = {};
   if (options.near === "bot") {
@@ -116,6 +134,18 @@ export function createSession(options: SessionOptions): Session {
     state: createRally(match, rng, precision),
     events: [],
     options,
+
+    get stats() {
+      return stats;
+    },
+
+    get nearStake() {
+      return stakeFor(session.state.match, "near");
+    },
+
+    get farStake() {
+      return stakeFor(session.state.match, "far");
+    },
 
     get difficultyLevel() {
       return adaptive ? adaptive.level : null;
@@ -138,6 +168,7 @@ export function createSession(options: SessionOptions): Session {
       const result = applySwing(session.state, event);
       session.state = result.state;
       session.events.push(...result.events);
+      for (const e of result.events) stats = foldEvent(stats, e);
     },
 
     beginFrame() {
@@ -157,12 +188,14 @@ export function createSession(options: SessionOptions): Session {
           const result = applySwing(session.state, update.swing);
           session.state = result.state;
           session.events.push(...result.events);
+          for (const e of result.events) stats = foldEvent(stats, e);
         }
       }
 
       const advanced = step(session.state, dt);
       session.state = advanced.state;
       session.events.push(...advanced.events);
+      for (const e of advanced.events) stats = foldEvent(stats, e);
 
       if (adaptive) {
         for (const event of advanced.events) {

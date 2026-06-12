@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   awardPoint,
   createMatch,
+  stakeFor,
   describeScore,
   isMatchPoint,
   otherSide,
@@ -205,6 +206,103 @@ describe("match", () => {
 
     expect(isMatchPoint(state, "near")).toBe(true);
     expect(isMatchPoint(state, "far")).toBe(false);
+  });
+});
+
+describe("what is at stake", () => {
+  it("sees nothing at stake early in a game", () => {
+    const state = createMatch("near");
+    expect(stakeFor(state, "near")).toBeNull();
+    expect(stakeFor(state, "far")).toBeNull();
+  });
+
+  it("calls it a game point for the server", () => {
+    let state = createMatch("near");
+    state = points(state, "near", 3);
+    expect(stakeFor(state, "near")).toBe("game-point");
+  });
+
+  it("calls it a break point for the receiver", () => {
+    // The same situation, seen from the other side, is the one a crowd reacts to.
+    let state = createMatch("near");
+    state = points(state, "far", 3);
+    expect(stakeFor(state, "far")).toBe("break-point");
+    expect(stakeFor(state, "near")).toBeNull();
+  });
+
+  it("prefers set point over game point", () => {
+    let state = createMatch("near");
+    state = games(state, "near", 5);
+    state = points(state, "near", 3);
+    expect(stakeFor(state, "near")).toBe("set-point");
+  });
+
+  it("prefers match point over set point", () => {
+    let state = createMatch("near");
+    state = games(state, "near", 6);
+    state = games(state, "near", 5);
+    state = points(state, "near", 3);
+    expect(stakeFor(state, "near")).toBe("match-point");
+  });
+
+  it("sees nothing at stake at deuce", () => {
+    let state = createMatch("near");
+    state = points(state, "near", 3);
+    state = points(state, "far", 3);
+    expect(stakeFor(state, "near")).toBeNull();
+    expect(stakeFor(state, "far")).toBeNull();
+  });
+
+  it("sees a game point at advantage", () => {
+    let state = createMatch("near");
+    state = points(state, "near", 3);
+    state = points(state, "far", 3);
+    state = awardPoint(state, "near");
+    expect(stakeFor(state, "near")).toBe("game-point");
+  });
+
+  it("sees set point inside a tiebreak", () => {
+    let state = createMatch("near");
+    for (let i = 0; i < 6; i++) {
+      state = game(state, "near");
+      state = game(state, "far");
+    }
+    expect(state.inTiebreak).toBe(true);
+    state = points(state, "near", 6);
+    expect(stakeFor(state, "near")).toBe("set-point");
+  });
+
+  it("goes quiet once the match is decided", () => {
+    let state = createMatch("near");
+    state = games(state, "near", 12);
+    expect(state.winner).toBe("near");
+    expect(stakeFor(state, "near")).toBeNull();
+    expect(stakeFor(state, "far")).toBeNull();
+  });
+
+  it("never claims a stake that awarding the point would not deliver", () => {
+    // Cross-check against the real reducer for every position in a long match.
+    let seed = 99;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+
+    let state = createMatch("near");
+    for (let i = 0; i < 4000 && !state.winner; i++) {
+      for (const side of ["near", "far"] as const) {
+        const stake = stakeFor(state, side);
+        const after = awardPoint(state, side);
+        const tookGame =
+          after.games[side] > state.games[side] || after.sets[side] > state.sets[side];
+
+        if (stake === "match-point") expect(after.winner).toBe(side);
+        if (stake === "set-point") expect(after.sets[side]).toBeGreaterThan(state.sets[side]);
+        if (stake === "game-point" || stake === "break-point") expect(tookGame).toBe(true);
+        if (stake === null && !state.winner) expect(after.winner).not.toBe(side);
+      }
+      state = awardPoint(state, rand() < 0.5 ? "near" : "far");
+    }
   });
 });
 
